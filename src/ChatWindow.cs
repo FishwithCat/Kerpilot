@@ -329,7 +329,10 @@ namespace Kerpilot
             _inputField = inputObj.AddComponent<InputField>();
             _inputField.textComponent = inputText;
             _inputField.placeholder = placeholder;
-            _inputField.onEndEdit.AddListener(OnInputEndEdit);
+            // Use MultiLineNewline so Enter does NOT trigger onEndEdit/deactivate.
+            // This prevents IME confirmation Enter from being treated as "send".
+            _inputField.lineType = InputField.LineType.MultiLineNewline;
+            _inputField.onValueChanged.AddListener(OnInputValueChanged);
 
             // Lock game controls when input is focused
             var trigger = inputObj.AddComponent<EventTrigger>();
@@ -367,10 +370,15 @@ namespace Kerpilot
             _sendButton.onClick.AddListener(OnSendClicked);
         }
 
-        private void OnInputEndEdit(string text)
+        private void OnInputValueChanged(string text)
         {
-            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            // In MultiLineNewline mode, Enter inserts '\n' into the text.
+            // When IME is composing, Enter confirms the character (no '\n' inserted).
+            // So detecting '\n' reliably distinguishes "send" from "IME confirm".
+            if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
             {
+                // Strip the newline and send
+                _inputField.text = text.Replace("\n", "").Replace("\r", "");
                 OnSendClicked();
             }
         }
@@ -419,62 +427,153 @@ namespace Kerpilot
 
             _coroutineHost.StartCoroutine(ScrollToBottom());
 
+            int round = 0;
+            const int maxRounds = 5;
+            bool needsMoreRounds = true;
+
             _scrollPending = true;
             string latestText = null;
             GameObject bubbleRow = null;
             Text messageText = null;
 
-            // Start a coroutine that throttles UI updates and scrolling
+            // Single UI loop coroutine shared across all tool-call rounds
             _coroutineHost.StartCoroutine(StreamingUiLoop(() => messageText, () => latestText, () => _scrollPending));
 
-            yield return LlmClient.SendChatRequest(
-                _conversationHistory,
-                _settings,
-                onToken: (accumulated) =>
-                {
-                    // On first token, replace "Thinking..." with a real bubble
-                    if (bubbleRow == null)
+            while (needsMoreRounds && round < maxRounds)
+            {
+                round++;
+                needsMoreRounds = false;
+                List<ToolCall> pendingToolCalls = null;
+
+                yield return LlmClient.SendChatRequest(
+                    _conversationHistory,
+                    _settings,
+                    onToken: (accumulated) =>
                     {
-                        Object.Destroy(thinkingObj);
-                        var msg = new ChatMessage(MessageSender.AI, accumulated);
-                        bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
-                        messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
-                        if (messageText != null)
+                        // On first visible token, replace "Thinking..." with a real bubble.
+                        // Skip whitespace-only content (some models stream leading newlines).
+                        if (bubbleRow == null)
                         {
-                            var textLayout = messageText.GetComponent<LayoutElement>();
-                            if (textLayout != null)
-                                textLayout.preferredWidth = UIStyleConstants.Scaled(
-                                    UIStyleConstants.WindowWidth * UIStyleConstants.BubbleMaxWidthRatio)
-                                    - UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding) * 2;
+                            if (accumulated.Trim().Length == 0)
+                                return;
+                            Object.Destroy(thinkingObj);
+                            thinkingObj = null;
+                            var msg = new ChatMessage(MessageSender.AI, accumulated.TrimStart());
+                            bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                            messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                            if (messageText != null)
+                            {
+                                var textLayout = messageText.GetComponent<LayoutElement>();
+                                if (textLayout != null)
+                                    textLayout.preferredWidth = UIStyleConstants.Scaled(
+                                        UIStyleConstants.WindowWidth * UIStyleConstants.BubbleMaxWidthRatio)
+                                        - UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding) * 2;
+                            }
                         }
+                        latestText = accumulated;
+                    },
+                    onComplete: (text) =>
+                    {
+                        _conversationHistory.Add(new ChatMessage(MessageSender.AI, text));
+                        latestText = text;
+                    },
+                    onToolCalls: (toolCalls) =>
+                    {
+                        pendingToolCalls = toolCalls;
+                    },
+                    onError: (error) =>
+                    {
+                        // On error with no tokens yet, replace "Thinking..." with error in bubble
+                        if (bubbleRow == null)
+                        {
+                            Object.Destroy(thinkingObj);
+                            thinkingObj = null;
+                            var msg = new ChatMessage(MessageSender.AI, error);
+                            bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                            messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                        }
+                        latestText = error;
                     }
-                    latestText = accumulated;
-                },
-                onComplete: (text) =>
+                );
+
+                if (pendingToolCalls != null)
                 {
-                    _conversationHistory.Add(new ChatMessage(MessageSender.AI, text));
-                    latestText = text;
-                },
-                onError: (error) =>
-                {
-                    // On error with no tokens yet, replace "Thinking..." with error in bubble
-                    if (bubbleRow == null)
+                    // Add assistant tool-call message to history
+                    _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(pendingToolCalls));
+
+                    // Destroy any premature bubble created by content tokens
+                    // that arrived before the tool_calls chunks
+                    if (bubbleRow != null)
+                    {
+                        Object.Destroy(bubbleRow);
+                        bubbleRow = null;
+                        messageText = null;
+                        latestText = null;
+                    }
+
+                    // Destroy thinking label — we'll show per-tool status instead
+                    if (thinkingObj != null)
                     {
                         Object.Destroy(thinkingObj);
-                        var msg = new ChatMessage(MessageSender.AI, error);
-                        bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
-                        messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                        thinkingObj = null;
                     }
-                    latestText = error;
+
+                    // Execute each tool: show per-tool status label
+                    foreach (var tc in pendingToolCalls)
+                    {
+                        var statusObj = CreateObj("ToolStatus", _contentTransform);
+                        var statusText = statusObj.AddComponent<Text>();
+                        statusText.text = ToolDefinitions.GetToolStatusLabel(tc.FunctionName);
+                        statusText.font = UIStyleConstants.AppFont;
+                        statusText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.MessageFontSize);
+                        statusText.fontStyle = FontStyle.Italic;
+                        statusText.color = UIStyleConstants.TextMuted;
+                        statusText.alignment = TextAnchor.MiddleLeft;
+                        var statusFitter = statusObj.AddComponent<ContentSizeFitter>();
+                        statusFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                        _coroutineHost.StartCoroutine(ScrollToBottom());
+
+                        string result = null;
+                        yield return ToolDefinitions.ExecuteToolCoroutine(
+                            tc.FunctionName, tc.Arguments, r => result = r);
+                        _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result ?? "{}"));
+
+                        Object.Destroy(statusObj);
+                    }
+
+                    // Wait one frame for cleanup
+                    yield return null;
+
+                    // Show thinking label for next LLM round
+                    thinkingObj = CreateObj("Thinking", _contentTransform);
+                    thinkingText = thinkingObj.AddComponent<Text>();
+                    thinkingText.text = "Thinking...";
+                    thinkingText.font = UIStyleConstants.AppFont;
+                    thinkingText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.MessageFontSize);
+                    thinkingText.fontStyle = FontStyle.Italic;
+                    thinkingText.color = UIStyleConstants.TextMuted;
+                    thinkingText.alignment = TextAnchor.MiddleLeft;
+                    var newFitter = thinkingObj.AddComponent<ContentSizeFitter>();
+                    newFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+                    needsMoreRounds = true;
                 }
-            );
+            }
 
             // Final UI update with complete text
             _scrollPending = false;
-            // Clean up thinking label if still present (e.g. empty response)
+            // Clean up thinking label if still present
             if (thinkingObj != null)
                 Object.Destroy(thinkingObj);
-            if (messageText != null && latestText != null)
+
+            // If no bubble was created yet (e.g. non-streamed response after tool calls), create one now
+            if (bubbleRow == null && latestText != null)
+            {
+                var msg = new ChatMessage(MessageSender.AI, latestText);
+                bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+            }
+            else if (messageText != null && latestText != null)
             {
                 messageText.text = latestText;
                 LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
