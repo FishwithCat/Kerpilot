@@ -5,10 +5,12 @@ namespace Kerpilot
     public static class UIStyleConstants
     {
         // Window
-        public const float WindowWidth = 420f;
+        public const float WindowWidth = 480f;
         public const float WindowHeight = 560f;
         public const float HeaderHeight = 44f;
         public const float InputBarHeight = 48f;
+        public const float InputFieldMinHeight = 36f;
+        public const float InputFieldMaxHeight = 120f;
 
         // Bubble
         public const float BubblePadding = 12f;

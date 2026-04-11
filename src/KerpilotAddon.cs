@@ -20,7 +20,14 @@ namespace Kerpilot
         private void Start()
         {
             _chatWindow = new ChatWindow();
+            _chatWindow.OnClosed += SyncToolbarButtonOff;
             _chatWindow.Initialize(this);
+        }
+
+        private void SyncToolbarButtonOff()
+        {
+            if (_toolbarButton != null)
+                _toolbarButton.SetFalse(false);
         }
 
 

@@ -8,6 +8,7 @@ namespace Kerpilot
 {
     public class ChatWindow
     {
+        public event System.Action OnClosed;
         private const string InputLockId = "KerpilotInputLock";
 
         private GameObject _canvasObj;
@@ -16,6 +17,8 @@ namespace Kerpilot
         private GameObject _inputBar;
         private ScrollRect _scrollRect;
         private InputField _inputField;
+        private LayoutElement _inputElement;
+        private LayoutElement _inputBarElement;
         private Button _sendButton;
         private Transform _contentTransform;
         private RectTransform _contentRectTransform;
@@ -69,6 +72,7 @@ namespace Kerpilot
         {
             _canvasObj.SetActive(false);
             RemoveInputLock();
+            OnClosed?.Invoke();
         }
 
         public void Destroy()
@@ -289,9 +293,9 @@ namespace Kerpilot
             _inputBar = CreateObj("InputBar", parent);
             var barImage = _inputBar.AddComponent<Image>();
             barImage.color = UIStyleConstants.PanelDark;
-            var barElement = _inputBar.AddComponent<LayoutElement>();
-            barElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
-            barElement.flexibleHeight = 0;
+            _inputBarElement = _inputBar.AddComponent<LayoutElement>();
+            _inputBarElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
+            _inputBarElement.flexibleHeight = 0;
 
             var barLayout = _inputBar.AddComponent<HorizontalLayoutGroup>();
             barLayout.childForceExpandWidth = false;
@@ -308,9 +312,10 @@ namespace Kerpilot
             inputBg.sprite = ChatBubbleFactory.RoundedSprite;
             inputBg.type = Image.Type.Sliced;
             inputBg.color = UIStyleConstants.InputBackground;
-            var inputElement = inputObj.AddComponent<LayoutElement>();
-            inputElement.flexibleWidth = 1f;
-            inputElement.preferredHeight = UIStyleConstants.Scaled(36);
+            _inputElement = inputObj.AddComponent<LayoutElement>();
+            _inputElement.flexibleWidth = 1f;
+            _inputElement.minHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
+            _inputElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
 
             int inputTextPad = UIStyleConstants.ScaledInt(10);
 
@@ -322,7 +327,7 @@ namespace Kerpilot
             placeholder.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize);
             placeholder.fontStyle = FontStyle.Italic;
             placeholder.color = UIStyleConstants.TextMuted;
-            placeholder.alignment = TextAnchor.MiddleLeft;
+            placeholder.alignment = TextAnchor.UpperLeft;
             var phRect = placeholderObj.GetComponent<RectTransform>();
             phRect.anchorMin = Vector2.zero;
             phRect.anchorMax = Vector2.one;
@@ -335,7 +340,8 @@ namespace Kerpilot
             inputText.font = UIStyleConstants.AppFont;
             inputText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize);
             inputText.color = UIStyleConstants.TextLight;
-            inputText.alignment = TextAnchor.MiddleLeft;
+            inputText.alignment = TextAnchor.UpperLeft;
+            inputText.verticalOverflow = VerticalWrapMode.Overflow;
             inputText.supportRichText = false;
             var itRect = inputTextObj.GetComponent<RectTransform>();
             itRect.anchorMin = Vector2.zero;
@@ -394,10 +400,43 @@ namespace Kerpilot
             // So detecting '\n' reliably distinguishes "send" from "IME confirm".
             if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
             {
+                // Shift+Enter inserts a newline; plain Enter sends the message
+                if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+                {
+                    ResizeInputField();
+                    return;
+                }
                 // Strip the newline and send
                 _inputField.text = text.Replace("\n", "").Replace("\r", "");
                 OnSendClicked();
+                return;
             }
+            ResizeInputField();
+        }
+
+        private void ResizeInputField()
+        {
+            var textGen = _inputField.textComponent.cachedTextGenerator;
+            float lineHeight = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize) + 2f;
+            int lineCount = Mathf.Max(1, textGen.lineCount);
+            float padding = UIStyleConstants.Scaled(8);
+            float desiredHeight = lineCount * lineHeight + padding;
+
+            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
+            float maxH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMaxHeight);
+            float clampedHeight = Mathf.Clamp(desiredHeight, minH, maxH);
+
+            _inputElement.preferredHeight = clampedHeight;
+            // Adjust input bar height: bar padding (12) + input field height
+            float barPad = UIStyleConstants.Scaled(12);
+            _inputBarElement.preferredHeight = clampedHeight + barPad;
+        }
+
+        private void ResetInputFieldSize()
+        {
+            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
+            _inputElement.preferredHeight = minH;
+            _inputBarElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
         }
 
         private void OnSendClicked()
@@ -409,6 +448,7 @@ namespace Kerpilot
 
             _inputField.text = "";
             _inputField.ActivateInputField();
+            ResetInputFieldSize();
 
             if (!_settings.IsConfigured)
             {
