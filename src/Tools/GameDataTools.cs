@@ -740,21 +740,19 @@ namespace Kerpilot
 
             if (isOnSurface)
             {
-                // Find launch stage: highest stage number with actual thrust
-                // (highest stage number = first to fire = bottom of rocket)
-                double launchTwr = 0;
-                int launchStageNum = -1;
+                var poweredStages = new List<DeltaVStageInfo>();
                 if (stages != null)
                 {
                     foreach (var s in stages)
                     {
-                        if ((s.thrustASL > 0 || s.thrustVac > 0) && s.stage > launchStageNum)
-                        {
-                            launchTwr = s.TWRASL;
-                            launchStageNum = s.stage;
-                        }
+                        if (s.thrustASL > 0 || s.thrustVac > 0)
+                            poweredStages.Add(s);
                     }
+                    poweredStages.Sort((a, b) => b.stage.CompareTo(a.stage)); // fire order: highest stage# first
                 }
+
+                double launchTwr = poweredStages.Count > 0 ? poweredStages[0].TWRASL : 0;
+                int launchStageNum = poweredStages.Count > 0 ? poweredStages[0].stage : -1;
 
                 bool canLiftOff = launchTwr > 1.0;
                 bool canOrbit = vesselDvAsl >= dvToOrbit * DvMargin;
@@ -769,6 +767,75 @@ namespace Kerpilot
                 sb.Append(canOrbit ? "true" : "false");
                 sb.Append(",\"can_escape\":");
                 sb.Append(canEscape ? "true" : "false");
+
+                sb.Append(",\"stage_profile\":[");
+                double dvAccum = 0;
+                for (int si = 0; si < poweredStages.Count; si++)
+                {
+                    var s = poweredStages[si];
+                    if (si > 0) sb.Append(",");
+
+                    // altitude ≈ Δv²/(2g), capped at atmosphere height
+                    double estAlt = hasAtmo
+                        ? Math.Min(dvAccum * dvAccum / (2.0 * gMs2), atmoDepth)
+                        : dvAccum * dvAccum / (2.0 * gMs2);
+                    bool inAtmo = hasAtmo && estAlt < atmoDepth;
+
+                    double effectiveTwr;
+                    string twrEnv;
+                    if (!hasAtmo || estAlt > atmoDepth * 0.9)
+                    {
+                        effectiveTwr = s.TWRVac;
+                        twrEnv = "vacuum";
+                    }
+                    else if (estAlt > atmoDepth * 0.5)
+                    {
+                        // High atmosphere: interpolate toward vacuum
+                        double frac = (estAlt - atmoDepth * 0.5) / (atmoDepth * 0.4);
+                        effectiveTwr = s.TWRASL + (s.TWRVac - s.TWRASL) * frac;
+                        twrEnv = "upper_atmo";
+                    }
+                    else
+                    {
+                        effectiveTwr = s.TWRASL;
+                        twrEnv = "sea_level";
+                    }
+
+                    sb.Append("{\"stage\":");
+                    sb.Append(s.stage);
+                    sb.Append(",\"fire_order\":");
+                    sb.Append(si + 1);
+                    sb.Append(",\"est_ignition_alt_m\":");
+                    sb.Append(F0(estAlt));
+                    sb.Append(",\"environment\":\"");
+                    sb.Append(twrEnv);
+                    sb.Append("\",\"effective_twr\":");
+                    sb.Append(F2(effectiveTwr));
+                    sb.Append(",\"twr_asl\":");
+                    sb.Append(F2(s.TWRASL));
+                    sb.Append(",\"twr_vac\":");
+                    sb.Append(F2(s.TWRVac));
+                    sb.Append(",\"dv_vac\":");
+                    sb.Append(F0(s.deltaVinVac));
+                    sb.Append(",\"dv_asl\":");
+                    sb.Append(F0(s.deltaVatASL));
+                    sb.Append("}");
+
+                    // Check upper stage TWR in its operating environment (skip launch stage)
+                    if (si > 0)
+                    {
+                        bool inVac = !hasAtmo || estAlt > atmoDepth * 0.9;
+                        double twr = inVac ? s.TWRVac : s.TWRASL;
+                        if (twr < 0.2 && twr > 0)
+                            issues.Add("Stage " + s.stage + " " + (inVac ? "vacuum" : "atmo") +
+                                " TWR " + F2(twr) + " is very low — long burns may cause gravity losses");
+                    }
+
+                    double stageDv = s.deltaVActual > 0 ? s.deltaVActual
+                        : (s.deltaVatASL + s.deltaVinVac) * 0.5;
+                    dvAccum += stageDv;
+                }
+                sb.Append("]");
 
                 if (launchTwr <= 0)
                     issues.Add("No powered stage found - check engine staging");

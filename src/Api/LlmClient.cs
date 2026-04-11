@@ -12,8 +12,13 @@ namespace Kerpilot
         public const string BaseSystemPrompt =
             "You are Kerpilot, an AI assistant for Kerbal Space Program. " +
             "Help the player with orbital mechanics, rocket design, mission planning, and gameplay tips. " +
-            "Keep responses concise and practical. " +
-            "When the player asks about their vessel, contracts, or celestial bodies, use the available tools to get current game data.";
+            "Keep responses concise and practical.\n\n" +
+            "CRITICAL: Never guess, estimate, or recall from memory any in-game numerical values " +
+            "(delta-v, mass, thrust, Isp, gravity, atmosphere pressure, orbital parameters, body radius, " +
+            "resource amounts, part stats, etc.). ALWAYS use the available tools to query actual game data first. " +
+            "This applies even when you think you know the value — the player's game state, mods, or configs " +
+            "may differ from defaults. If a tool is available to retrieve the data, you must call it before " +
+            "referencing any numbers in your response.";
 
         public static IEnumerator SendChatRequest(
             List<ChatMessage> history,
@@ -59,15 +64,32 @@ namespace Kerpilot
             request.SendWebRequest();
 
             var accumulated = new StringBuilder();
+            float lastActivityTime = Time.unscaledTime;
+            const float inactivityTimeout = 30f;
+            bool timedOut = false;
 
             while (!request.isDone)
             {
+                float now = Time.unscaledTime;
                 string token = streamHandler.ConsumeTokens();
                 if (!string.IsNullOrEmpty(token))
                 {
                     accumulated.Append(token);
                     onToken?.Invoke(accumulated.ToString());
+                    lastActivityTime = now;
                 }
+                else if (streamHandler.ConsumeNewDataFlag())
+                {
+                    lastActivityTime = now;
+                }
+
+                if (now - lastActivityTime > inactivityTimeout)
+                {
+                    timedOut = true;
+                    request.Abort();
+                    break;
+                }
+
                 yield return null;
             }
 
@@ -82,7 +104,16 @@ namespace Kerpilot
                 onToken?.Invoke(accumulated.ToString());
             }
 
-            if (request.isNetworkError || request.isHttpError)
+            if (timedOut && accumulated.Length > 0)
+            {
+                // Timed out but we have partial content — use it
+                onComplete?.Invoke(accumulated.ToString());
+            }
+            else if (timedOut)
+            {
+                onError?.Invoke("Response timed out (no data received for " + (int)inactivityTimeout + "s).");
+            }
+            else if (request.isNetworkError || request.isHttpError)
             {
                 string errorMsg;
                 if (request.responseCode == 401)
@@ -96,7 +127,6 @@ namespace Kerpilot
                 else
                     errorMsg = "API error (" + request.responseCode + "): " + request.error;
 
-                // If we got some tokens before the error, still complete with what we have
                 if (accumulated.Length > 0)
                     onComplete?.Invoke(accumulated.ToString());
                 else
@@ -110,8 +140,23 @@ namespace Kerpilot
             {
                 string result = accumulated.ToString();
                 if (string.IsNullOrEmpty(result))
-                    result = "(Empty response from API)";
-                onComplete?.Invoke(result);
+                {
+                    // Try to extract an error message from the raw response
+                    string raw = streamHandler.GetRawResponse();
+                    string apiError = !string.IsNullOrEmpty(raw)
+                        ? JsonHelper.ExtractJsonStringValue(raw, "message")
+                        : null;
+                    if (apiError != null)
+                        onError?.Invoke("API error: " + apiError);
+                    else if (!string.IsNullOrEmpty(raw))
+                        onError?.Invoke("Unexpected API response (no streamed content). Check Base URL and model name.");
+                    else
+                        onError?.Invoke("Empty response from API. The server returned no data.");
+                }
+                else
+                {
+                    onComplete?.Invoke(result);
+                }
             }
 
             request.Dispose();
@@ -126,8 +171,10 @@ namespace Kerpilot
     {
         private readonly StringBuilder _buffer = new StringBuilder();
         private readonly StringBuilder _pendingTokens = new StringBuilder();
+        private readonly StringBuilder _rawResponse = new StringBuilder();
         private readonly List<ToolCallAccumulator> _toolCalls = new List<ToolCallAccumulator>();
         private bool _hasToolCalls;
+        private bool _hasNewData;
 
         private class ToolCallAccumulator
         {
@@ -137,6 +184,17 @@ namespace Kerpilot
         }
 
         public bool HasToolCalls => _hasToolCalls;
+
+        /// <summary>Returns true if any data was received since the last call. Resets the flag.</summary>
+        public bool ConsumeNewDataFlag()
+        {
+            bool val = _hasNewData;
+            _hasNewData = false;
+            return val;
+        }
+
+        /// <summary>Returns the raw response text (for error diagnostics when no SSE content was parsed).</summary>
+        public string GetRawResponse() => _rawResponse.ToString();
 
         public List<ToolCall> GetToolCalls()
         {
@@ -150,6 +208,9 @@ namespace Kerpilot
         {
             string chunk = Encoding.UTF8.GetString(data, 0, dataLength);
             _buffer.Append(chunk);
+            if (_rawResponse.Length < 4096)
+                _rawResponse.Append(chunk);
+            _hasNewData = true;
             ProcessBuffer();
             return true;
         }

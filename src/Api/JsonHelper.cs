@@ -136,7 +136,12 @@ namespace Kerpilot
             pos++;
             while (pos < json.Length && (json[pos] == ' ' || json[pos] == '\t'))
                 pos++;
-            return pos < json.Length && json[pos] == '[';
+            // Must be a non-empty array: "[{" not just "[]"
+            if (pos >= json.Length || json[pos] != '[') return false;
+            pos++;
+            while (pos < json.Length && (json[pos] == ' ' || json[pos] == '\t'))
+                pos++;
+            return pos < json.Length && json[pos] == '{';
         }
 
         /// <summary>

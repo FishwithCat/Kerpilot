@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Kerpilot
 {
-    [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
+    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class KerpilotAddon : MonoBehaviour
     {
         private ChatWindow _chatWindow;
@@ -57,9 +57,7 @@ namespace Kerpilot
                 () => _chatWindow?.Show(),
                 () => _chatWindow?.Hide(),
                 null, null, null, null,
-                ApplicationLauncher.AppScenes.FLIGHT |
-                ApplicationLauncher.AppScenes.SPACECENTER |
-                ApplicationLauncher.AppScenes.MAPVIEW,
+                ApplicationLauncher.AppScenes.ALWAYS,
                 _toolbarIcon
             );
         }

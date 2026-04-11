@@ -52,7 +52,7 @@ namespace Kerpilot
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"analyze_vessel\"," +
-                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Computes Δv requirements from real body parameters (gravity, atmosphere), checks TWR, and lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
+                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR (ASL for lower stages, vacuum for upper stages that fire above atmosphere). Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}";
 

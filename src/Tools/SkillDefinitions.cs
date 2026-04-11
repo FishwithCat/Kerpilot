@@ -57,13 +57,16 @@ namespace Kerpilot
                     "STAGING: Discard empty mass as early as possible. Each stage should burn out and separate before the next ignites. " +
                     "Lower stages: high thrust, acceptable Isp. Upper stages: high Isp, lower thrust is fine.\n\n" +
                     "THRUST-TO-WEIGHT RATIO (TWR):\n" +
-                    "- TWR is evaluated per stage. The BOTTOM stage (highest stage number) is what matters at launch.\n" +
-                    "- Launch (sea level): 1.2–1.7 TWR on the bottom stage (with SRBs up to 2.0)\n" +
-                    "- Upper atmosphere: ~1.0 TWR\n" +
-                    "- Vacuum stages: 0.5+ TWR is sufficient\n" +
+                    "- TWR must be evaluated per stage IN ITS ACTUAL OPERATING ENVIRONMENT, not all at sea level.\n" +
+                    "- Lower stages fire at sea level → use ASL TWR. Upper stages fire at altitude or vacuum → use vacuum TWR.\n" +
+                    "- Launch stage (bottom, highest stage number): 1.2–1.7 ASL TWR (with SRBs up to 2.0)\n" +
+                    "- Upper atmosphere stages: ~1.0 TWR is fine\n" +
+                    "- Vacuum stages: 0.5+ vacuum TWR is sufficient (e.g. Terrier with 0.4 ASL TWR has ~1.0 vacuum TWR — perfectly adequate)\n" +
+                    "- IMPORTANT: A low ASL TWR on an upper stage is NOT a problem if that stage fires above the atmosphere. " +
+                    "Many vacuum-optimized engines (Terrier, Poodle, Nerv) have poor ASL TWR but excellent vacuum TWR.\n" +
+                    "- The analyze_vessel tool provides stage_profile with estimated ignition altitude and effective TWR for each stage — use this to assess the full flight.\n" +
                     "- Never exceed 4G for crewed missions (crew safety)\n" +
-                    "- Above 2.0 at launch: diminishing returns, wastes fuel fighting drag\n" +
-                    "- Use get_vessel_delta_v to check actual TWR per stage. The stage with the HIGHEST stage number fires first (bottom of rocket). Use analyze_vessel for an automated assessment.\n\n" +
+                    "- Above 2.0 at launch: diminishing returns, wastes fuel fighting drag\n\n" +
                     "TSIOLKOVSKY ROCKET EQUATION:\n" +
                     "Δv = g₀ × Isp × ln(m_wet / m_dry)\n" +
                     "- Isp = specific impulse (seconds) — engine efficiency\n" +
