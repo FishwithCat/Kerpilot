@@ -22,13 +22,15 @@ Kerpilot.csproj              # net472, references KSP/Unity DLLs from game direc
 src/
   KerpilotAddon.cs           # Entry point ([KSPAddon]), toolbar button, Ctrl+K shortcut
   ChatWindow.cs              # Builds full uGUI hierarchy programmatically (Canvas, ScrollRect, InputField)
-  ChatMessage.cs             # Data model: MessageSender enum + ChatMessage class
+  ChatMessage.cs             # Data model: MessageSender/MessageRole enums, ToolCall, ChatMessage
   ChatBubbleFactory.cs       # Creates rounded-rect sprites and message bubble GameObjects
   UIStyleConstants.cs        # Static design tokens: colors, dimensions, font sizes
   KerpilotSettings.cs        # Settings persistence via KSP ConfigNode (API key, endpoint, model)
   SettingsPanel.cs           # uGUI settings form (same-window panel swap with chat view)
-  LlmClient.cs               # LLM API client using UnityWebRequest with SSE streaming
-  JsonHelper.cs              # Minimal JSON utilities (escape, extract, build request body)
+  LlmClient.cs               # LLM API client using UnityWebRequest with SSE streaming + tool call parsing
+  JsonHelper.cs              # Minimal JSON utilities (escape, extract, build request body, tool call parsing)
+  ToolDefinitions.cs         # Tool JSON schemas, dispatch to GameDataTools
+  GameDataTools.cs           # KSP game data queries (vessel parts, part info, celestial bodies, contracts)
 GameData/Kerpilot/
   Plugins/                   # Deployed DLL (symlinked into KSP GameData)
   PluginData/settings.cfg    # User settings (created at runtime, not committed)
@@ -37,7 +39,8 @@ GameData/Kerpilot/
 Key design decisions:
 - All UI is built programmatically via uGUI (no asset bundles, no OnGUI/IMGUI)
 - Rounded-rect sprites generated at runtime with 9-slice for bubble backgrounds
-- **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
+- **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
+- **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`) and the KSP Wiki (via MediaWiki API). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed (sync for game data, async coroutine for wiki HTTP) and results sent back until the LLM produces a text response. Game data tools are only available in flight scene; wiki tool is always available. Per-tool status labels (e.g. "Searching KSP Wiki...") are shown as plain italic text during execution.
 - **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
 - **UI rendering sharpness requirements:**

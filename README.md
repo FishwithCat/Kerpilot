@@ -6,12 +6,22 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 
 - Modern dark-themed chat interface with rounded message bubbles
 - LLM integration with streaming responses (token-by-token display)
+- **Game-aware tools** — the AI can query live game data via function calling:
+  - Vessel part composition (names, counts, masses, resources)
+  - Vessel delta-v budget per stage (delta-v, TWR, ISP, burn time)
+  - Vessel orbit parameters (Ap/Pe, inclination, eccentricity, period)
+  - Vessel flight status (altitude, speed, G-force, electric charge, CommNet)
+  - Part details (description, cost, mass, category, resource capacities)
+  - Celestial body parameters (gravity, atmosphere, SOI, orbital data)
+  - Atmosphere profiles (pressure, temperature, density at multiple altitudes)
+  - Active contracts (objectives, rewards, completion state)
+  - KSP Wiki search (tutorials, game mechanics, guides)
 - Settings panel to configure API endpoint, API key, and model
 - Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
 - Draggable window
 - Input lock prevents chat keystrokes from triggering vessel controls
-- Available in Space Center, Flight, and Map View scenes
+- Available in Space Center, Flight, and Map View scenes (vessel/contract tools in Flight only, wiki always available)
 
 ## Requirements
 
