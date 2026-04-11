@@ -12,8 +12,12 @@ dotnet build -c Release
 
 Output: `GameData/Kerpilot/Plugins/Kerpilot.dll`
 
+KSP path is resolved via: `KSPROOT` env var > MSBuild `-p:KSPRoot=...` > default Steam path on macOS.
+
+Package for distribution: `dotnet msbuild Kerpilot.csproj -t:Package -p:Configuration=Release` → `dist/Kerpilot-vX.Y.Z.zip`
+
 KSP managed DLLs referenced from:
-`/Users/linear/Library/Application Support/Steam/steamapps/common/Kerbal Space Program/KSP.app/Contents/Resources/Data/Managed/`
+`$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed/`
 
 ## Architecture
 

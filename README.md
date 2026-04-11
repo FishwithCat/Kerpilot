@@ -44,13 +44,11 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
    cd Kerpilot
    ```
 
-2. Verify the KSP path in `Kerpilot.csproj` matches your installation. The default is:
+2. If your KSP is not at the default Steam location, set the `KSPROOT` environment variable or pass `-p:KSPRoot=...`:
 
+   ```bash
+   export KSPROOT="/path/to/Kerbal Space Program"
    ```
-   /Users/linear/Library/Application Support/Steam/steamapps/common/Kerbal Space Program
-   ```
-
-   Update the `<KSPRoot>` property if your KSP is installed elsewhere.
 
 3. Build:
 
@@ -62,11 +60,23 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 
 ## Install
 
-Symlink or copy the `GameData/Kerpilot` folder into your KSP `GameData` directory:
+**From release zip:** Download the latest `Kerpilot-vX.Y.Z.zip` from [Releases](https://github.com/your-username/Kerpilot/releases), extract it into your KSP `GameData/` directory so the path is `GameData/Kerpilot/Plugins/Kerpilot.dll`.
+
+**For development:** Symlink the `GameData/Kerpilot` folder into your KSP `GameData` directory:
 
 ```bash
 ln -s "$(pwd)/GameData/Kerpilot" "/path/to/Kerbal Space Program/GameData/Kerpilot"
 ```
+
+## Package
+
+Build a distributable zip for release:
+
+```bash
+dotnet msbuild Kerpilot.csproj -t:Package -p:Configuration=Release
+```
+
+Output: `dist/Kerpilot-vX.Y.Z.zip` — users extract this into their KSP `GameData/` folder.
 
 ## Usage
 

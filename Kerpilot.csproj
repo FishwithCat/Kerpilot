@@ -10,8 +10,11 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <KSPRoot>/Users/linear/Library/Application Support/Steam/steamapps/common/Kerbal Space Program</KSPRoot>
+    <KSPRoot Condition="'$(KSPRoot)' == ''">$(KSPROOT)</KSPRoot>
+    <KSPRoot Condition="'$(KSPRoot)' == ''">$([System.IO.Path]::Combine('$(HOME)', 'Library', 'Application Support', 'Steam', 'steamapps', 'common', 'Kerbal Space Program'))</KSPRoot>
     <ManagedDir>$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ModDir>$(ProjectDir)GameData/Kerpilot</ModDir>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -67,7 +70,24 @@
 
   <Target Name="CopyToGameData" AfterTargets="Build">
     <Copy SourceFiles="$(OutputPath)Kerpilot.dll"
-          DestinationFolder="$(ProjectDir)GameData/Kerpilot/Plugins/" />
+          DestinationFolder="$(ModDir)/Plugins/" />
+  </Target>
+
+  <!-- Package: create a distributable zip -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <PropertyGroup>
+      <PackageDir>$(ProjectDir)dist</PackageDir>
+      <ZipFile>$(PackageDir)/Kerpilot-v$(Version).zip</ZipFile>
+    </PropertyGroup>
+    <RemoveDir Directories="$(PackageDir)/staging" />
+    <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Plugins" />
+    <Copy SourceFiles="$(ModDir)/Plugins/Kerpilot.dll"
+          DestinationFolder="$(PackageDir)/staging/Kerpilot/Plugins/" />
+    <ZipDirectory SourceDirectory="$(PackageDir)/staging"
+                  DestinationFile="$(ZipFile)"
+                  Overwrite="true" />
+    <RemoveDir Directories="$(PackageDir)/staging" />
+    <Message Text="Package created: $(ZipFile)" Importance="high" />
   </Target>
 
 </Project>
