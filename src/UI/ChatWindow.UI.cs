@@ -88,7 +88,7 @@ namespace Kerpilot
             // Settings button with programmatic gear icon
             var settingsObj = CreateObj("SettingsButton", header.transform);
             var settingsBtnImage = settingsObj.AddComponent<Image>();
-            settingsBtnImage.sprite = ChatBubbleFactory.GearSprite;
+            settingsBtnImage.sprite = SpriteFactory.GearSprite;
             settingsBtnImage.color = UIStyleConstants.TextMuted;
             var settingsBtn = settingsObj.AddComponent<Button>();
             var settingsElement = settingsObj.AddComponent<LayoutElement>();
@@ -191,13 +191,54 @@ namespace Kerpilot
             pointerClick.callback.AddListener((_) => FocusInput());
             clickHandler.triggers.Add(pointerClick);
 
+            // Single rich-text log
+            BuildLogText(_contentTransform);
+
             // Inline input at the bottom of the content area
             BuildInlineInput(_contentTransform);
         }
 
+        private void BuildLogText(Transform contentParent)
+        {
+            var logObj = CreateObj("Log", contentParent);
+            _logText = logObj.AddComponent<Text>();
+            _logText.font = UIStyleConstants.AppFont;
+            _logText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.AiFontSize);
+            _logText.color = UIStyleConstants.AiTextColor;
+            _logText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _logText.verticalOverflow = VerticalWrapMode.Overflow;
+            _logText.alignment = TextAnchor.UpperLeft;
+            _logText.supportRichText = true;
+            var logElement = logObj.AddComponent<LayoutElement>();
+            logElement.flexibleWidth = 1f;
+        }
+
         private void BuildInlineInput(Transform contentParent)
         {
-            _inputRow = ChatBubbleFactory.CreateTerminalRow("InputRow", contentParent, showPrefix: true);
+            // Input row with "> " prompt prefix
+            _inputRow = CreateObj("InputRow", contentParent);
+            var rowLayout = _inputRow.AddComponent<HorizontalLayoutGroup>();
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childForceExpandHeight = false;
+            rowLayout.childAlignment = TextAnchor.UpperLeft;
+            rowLayout.spacing = UIStyleConstants.Scaled(4);
+            var rowFitter = _inputRow.AddComponent<ContentSizeFitter>();
+            rowFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            rowFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var rowElement = _inputRow.AddComponent<LayoutElement>();
+            rowElement.flexibleWidth = 1f;
+
+            // Prompt prefix
+            var prefixObj = CreateObj("Prefix", _inputRow.transform);
+            var prefixText = prefixObj.AddComponent<Text>();
+            prefixText.text = ">";
+            prefixText.font = UIStyleConstants.AppFont;
+            prefixText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.UserFontSize);
+            prefixText.color = UIStyleConstants.PromptColor;
+            prefixText.alignment = TextAnchor.UpperLeft;
+            var prefixFitter = prefixObj.AddComponent<ContentSizeFitter>();
+            prefixFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            prefixFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var inputObj = CreateObj("InputField", _inputRow.transform);
             var inputBg = inputObj.AddComponent<Image>();

@@ -7,9 +7,6 @@ namespace Kerpilot
     {
         private void OnInputValueChanged(string text)
         {
-            // Reset block cursor to visible on any text change
-            ResetBlockCursorBlink();
-
             if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
             {
                 // Shift+Enter inserts a newline; plain Enter sends the message

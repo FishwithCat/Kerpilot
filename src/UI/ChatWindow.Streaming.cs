@@ -12,7 +12,8 @@ namespace Kerpilot
             _isStreaming = true;
             _inputField.interactable = false;
 
-            var thinkingObj = CreateStatusLabel("Thinking...");
+            AppendToLog(FormatToolLine("Thinking..."));
+            FlushLog();
             _coroutineHost.StartCoroutine(ScrollToBottom());
 
             int round = 0;
@@ -21,11 +22,11 @@ namespace Kerpilot
 
             _scrollPending = true;
             string latestText = null;
-            GameObject lineRow = null;
-            Text messageText = null;
+            bool hasStreamLine = false;
+            // Length of _logBuilder before streaming (without the "Thinking..." line)
+            int logSnapshotLength = -1;
 
-            // Single UI loop coroutine shared across all tool-call rounds
-            _coroutineHost.StartCoroutine(StreamingUiLoop(() => messageText, () => latestText, () => _scrollPending));
+            _coroutineHost.StartCoroutine(StreamingUiLoop(() => latestText, () => _scrollPending));
 
             while (needsMoreRounds && round < maxRounds)
             {
@@ -38,16 +39,13 @@ namespace Kerpilot
                     _settings,
                     onToken: (accumulated) =>
                     {
-                        if (lineRow == null)
+                        if (!hasStreamLine)
                         {
                             if (accumulated.Trim().Length == 0)
                                 return;
-                            Object.Destroy(thinkingObj);
-                            thinkingObj = null;
-                            var msg = new ChatMessage(MessageSender.AI, accumulated.TrimStart());
-                            lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
-                            InsertMessageLine(lineRow);
-                            messageText = ChatBubbleFactory.GetMessageText(lineRow);
+                            RemoveLastLogLine();
+                            logSnapshotLength = _logBuilder.Length;
+                            hasStreamLine = true;
                         }
                         latestText = accumulated;
                     },
@@ -62,14 +60,11 @@ namespace Kerpilot
                     },
                     onError: (error) =>
                     {
-                        if (lineRow == null)
+                        if (!hasStreamLine)
                         {
-                            Object.Destroy(thinkingObj);
-                            thinkingObj = null;
-                            var msg = new ChatMessage(MessageSender.AI, error);
-                            lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
-                            InsertMessageLine(lineRow);
-                            messageText = ChatBubbleFactory.GetMessageText(lineRow);
+                            RemoveLastLogLine();
+                            logSnapshotLength = _logBuilder.Length;
+                            hasStreamLine = true;
                         }
                         latestText = error;
                     }
@@ -83,98 +78,100 @@ namespace Kerpilot
                     _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(
                         pendingToolCalls, hasVisibleContent ? contentBeforeTools : null));
 
-                    if (lineRow != null)
+                    if (hasStreamLine)
                     {
+                        _logBuilder.Length = logSnapshotLength;
                         if (hasVisibleContent)
-                        {
-                            messageText.text = contentBeforeTools;
-                            LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
-                            lineRow = null;
-                            messageText = null;
-                            latestText = null;
-                        }
-                        else
-                        {
-                            Object.Destroy(lineRow);
-                            lineRow = null;
-                            messageText = null;
-                            latestText = null;
-                        }
+                            AppendToLog(FormatAiLine(contentBeforeTools));
+                        FlushLog();
                     }
 
-                    if (thinkingObj != null)
-                    {
-                        Object.Destroy(thinkingObj);
-                        thinkingObj = null;
-                    }
+                    hasStreamLine = false;
+                    latestText = null;
+                    logSnapshotLength = -1;
 
                     foreach (var tc in pendingToolCalls)
                     {
-                        var statusObj = CreateStatusLabel(ToolDefinitions.GetToolStatusLabel(tc.FunctionName));
+                        AppendToLog(FormatToolLine(ToolDefinitions.GetToolStatusLabel(tc.FunctionName)));
+                        FlushLog();
                         _coroutineHost.StartCoroutine(ScrollToBottom());
 
                         string result = ToolDefinitions.ExecuteTool(tc.FunctionName, tc.Arguments);
                         _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result));
 
-                        Object.Destroy(statusObj);
+                        RemoveLastLogLine();
                     }
 
                     yield return null;
 
-                    thinkingObj = CreateStatusLabel("Thinking...");
+                    AppendToLog(FormatToolLine("Thinking..."));
+                    FlushLog();
                     needsMoreRounds = true;
                 }
             }
 
             _scrollPending = false;
-            if (thinkingObj != null)
-                Object.Destroy(thinkingObj);
 
-            if (lineRow == null && latestText != null)
+            if (hasStreamLine && latestText != null)
             {
-                var msg = new ChatMessage(MessageSender.AI, latestText);
-                lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
-                InsertMessageLine(lineRow);
-                messageText = ChatBubbleFactory.GetMessageText(lineRow);
+                _logBuilder.Length = logSnapshotLength;
+                AppendToLog(FormatAiLine(latestText));
             }
-            else if (messageText != null && latestText != null)
+            else if (!hasStreamLine)
             {
-                messageText.text = latestText;
-                LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
+                RemoveLastLogLine();
+                if (latestText != null)
+                    AppendToLog(FormatAiLine(latestText));
             }
 
+            FlushLog();
             _isStreaming = false;
             _inputField.interactable = true;
             _coroutineHost.StartCoroutine(ScrollToBottom());
         }
 
-        /// <summary>
-        /// Typewriter animation loop: reveals characters one by one with a blinking cursor.
-        /// Accelerates when the LLM produces text faster than the base typing speed.
-        /// </summary>
-        private IEnumerator StreamingUiLoop(System.Func<Text> getMessageText, System.Func<string> getLatest, System.Func<bool> isActive)
+        private void RemoveLastLogLine()
+        {
+            int len = _logBuilder.Length;
+            for (int i = len - 1; i >= 0; i--)
+            {
+                if (_logBuilder[i] == '\n')
+                {
+                    _logBuilder.Length = i;
+                    return;
+                }
+            }
+            _logBuilder.Clear();
+        }
+
+        private IEnumerator StreamingUiLoop(System.Func<string> getLatest, System.Func<bool> isActive)
         {
             int revealedCount = 0;
             float charAccum = 0f;
             float cursorTimer = 0f;
             bool cursorVisible = true;
             const float cursorBlinkInterval = 0.5f;
-            const string cursor = "\u2588"; // full block cursor
+            const string cursor = "\u2588";
+            const float uiUpdateInterval = 0.1f; // ~10fps throttle
+            float timeSinceUpdate = uiUpdateInterval; // force first update immediately
+            string cachedLogBase = null;
+            int cachedLogLength = -1;
+            int lastRevealedCount = -1;
+            bool lastCursorVisible = true;
 
             while (isActive())
             {
                 float dt = Time.unscaledDeltaTime;
-                var mt = getMessageText();
+                timeSinceUpdate += dt;
                 string target = getLatest();
 
-                if (target != null && mt != null)
+                if (target != null && _logText != null)
                 {
                     int targetLen = target.Length;
                     int backlog = targetLen - revealedCount;
 
                     if (backlog > 0)
                     {
-                        // Accelerate when backlog grows to keep up with fast LLM output
                         float speed = UIStyleConstants.TypingCharsPerSecond;
                         if (backlog > UIStyleConstants.TypingCatchUpThreshold)
                             speed *= UIStyleConstants.TypingCatchUpMultiplier;
@@ -187,13 +184,11 @@ namespace Kerpilot
                             revealedCount = Mathf.Min(revealedCount + chars, targetLen);
                         }
 
-                        // Reset blink to visible while actively typing
                         cursorVisible = true;
                         cursorTimer = 0f;
                     }
                     else
                     {
-                        // Blink cursor when caught up, waiting for more tokens
                         cursorTimer += dt;
                         if (cursorTimer >= cursorBlinkInterval)
                         {
@@ -202,30 +197,41 @@ namespace Kerpilot
                         }
                     }
 
-                    string visible = target.Substring(0, revealedCount);
-                    string display = cursorVisible ? visible + cursor : visible;
-                    mt.text = display;
+                    bool needsUpdate = timeSinceUpdate >= uiUpdateInterval
+                        && (revealedCount != lastRevealedCount || cursorVisible != lastCursorVisible);
 
-                    LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRectTransform);
-                    if (_scrollRect != null)
-                        _scrollRect.verticalNormalizedPosition = 0f;
+                    if (needsUpdate)
+                    {
+                        timeSinceUpdate = 0f;
+                        lastRevealedCount = revealedCount;
+                        lastCursorVisible = cursorVisible;
+
+                        // Cache logBase — only rebuild when _logBuilder changes
+                        int currentLogLen = _logBuilder.Length;
+                        if (cachedLogLength != currentLogLen)
+                        {
+                            cachedLogBase = currentLogLen > 0
+                                ? _logBuilder.ToString() + "\n"
+                                : "";
+                            cachedLogLength = currentLogLen;
+                        }
+
+                        string visible = target.Substring(0, revealedCount);
+                        string cursorStr = cursorVisible ? cursor : "";
+                        _logText.text = cachedLogBase + FormatAiLine(visible + cursorStr);
+
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRectTransform);
+                        if (_scrollRect != null)
+                            _scrollRect.verticalNormalizedPosition = 0f;
+                    }
                 }
 
                 yield return null;
             }
 
-            // Streaming ended — flush remaining text and remove cursor
-            FlushTypewriter(getMessageText(), getLatest());
-        }
-
-        /// <summary>
-        /// Shows the full final text without the cursor character.
-        /// </summary>
-        private void FlushTypewriter(Text mt, string final)
-        {
-            if (mt != null && final != null)
+            if (_logText != null)
             {
-                mt.text = final;
+                FlushLog();
                 LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRectTransform);
                 if (_scrollRect != null)
                     _scrollRect.verticalNormalizedPosition = 0f;

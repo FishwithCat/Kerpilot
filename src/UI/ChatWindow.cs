@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,6 +10,7 @@ namespace Kerpilot
     {
         public event System.Action OnClosed;
         private const string InputLockId = "KerpilotInputLock";
+        private const int MaxLogChars = 14000;
 
         private GameObject _canvasObj;
         private GameObject _windowPanel;
@@ -22,6 +24,8 @@ namespace Kerpilot
         private MonoBehaviour _coroutineHost;
         private SettingsPanel _settingsPanel;
         private KerpilotSettings _settings;
+        private Text _logText;
+        private readonly StringBuilder _logBuilder = new StringBuilder();
         // Static so conversation history survives scene changes
         private static readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
         private bool _isStreaming;
@@ -37,19 +41,18 @@ namespace Kerpilot
 
             if (_conversationHistory.Count == 0)
             {
-                AddMessage(new ChatMessage(MessageSender.AI, "kerpilot ready. type a message to begin."));
+                AppendToLog(FormatAiLine("kerpilot ready. type a message to begin."));
             }
             else
             {
-                // Restore previous conversation lines
                 foreach (var msg in _conversationHistory)
                 {
                     if (msg.Role == MessageRole.Tool || (msg.Role == MessageRole.Assistant && msg.ToolCalls != null))
                         continue;
-                    InsertMessageLine(ChatBubbleFactory.CreateMessageLine(msg, _contentTransform));
+                    AppendToLog(FormatMessageLine(msg));
                 }
-                _coroutineHost.StartCoroutine(ScrollToBottom());
             }
+            FlushLog();
 
             Hide();
         }
@@ -98,7 +101,6 @@ namespace Kerpilot
             if (_inputField != null && _inputField.interactable)
             {
                 _inputField.ActivateInputField();
-                // ActivateInputField selects all text; defer caret move to deselect
                 _coroutineHost.StartCoroutine(MoveCaretToEnd());
             }
         }
@@ -124,50 +126,80 @@ namespace Kerpilot
             InputLockManager.RemoveControlLock(InputLockId);
         }
 
-        /// <summary>
-        /// Inserts a message line before the inline input row so it always stays at the bottom.
-        /// </summary>
-        private void InsertMessageLine(GameObject lineObj)
-        {
-            if (_inputRow != null)
-                lineObj.transform.SetSiblingIndex(_inputRow.transform.GetSiblingIndex());
-        }
-
         private void AddMessage(ChatMessage msg)
         {
-            var lineObj = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
-            InsertMessageLine(lineObj);
+            AppendToLog(FormatMessageLine(msg));
+            FlushLog();
             _coroutineHost.StartCoroutine(ScrollToBottom());
+        }
+
+        private void AppendToLog(string richLine)
+        {
+            if (_logBuilder.Length > 0)
+                _logBuilder.Append('\n');
+            _logBuilder.Append(richLine);
+        }
+
+        private void FlushLog()
+        {
+            TrimLog();
+            if (_logText != null)
+                _logText.text = _logBuilder.ToString();
+        }
+
+        private void TrimLog()
+        {
+            int len = _logBuilder.Length;
+            if (len <= MaxLogChars)
+                return;
+            // Find first newline within the portion we want to keep
+            int searchFrom = len - MaxLogChars;
+            int cutAt = -1;
+            for (int i = searchFrom; i < len; i++)
+            {
+                if (_logBuilder[i] == '\n') { cutAt = i; break; }
+            }
+            if (cutAt >= 0 && cutAt < len - 1)
+            {
+                _logBuilder.Remove(0, cutAt + 1);
+            }
         }
 
         private IEnumerator ScrollToBottom()
         {
-            yield return null; // wait one frame for layout rebuild
-            yield return null; // extra frame for content size fitter
+            yield return null;
+            yield return null;
             if (_scrollRect != null)
                 _scrollRect.verticalNormalizedPosition = 0f;
         }
 
-        private GameObject CreateStatusLabel(string text)
+        private static string EscapeRichText(string text)
         {
-            var obj = CreateObj(text, _contentTransform);
-            var label = obj.AddComponent<Text>();
-            label.text = text;
-            label.font = UIStyleConstants.AppFont;
-            label.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.AiFontSize);
-            label.fontStyle = FontStyle.Italic;
-            label.color = UIStyleConstants.ToolColor;
-            label.alignment = TextAnchor.MiddleLeft;
-            var fitter = obj.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            // Insert before inline input
-            InsertMessageLine(obj);
-            return obj;
+            return text.Contains("<") ? text.Replace("<", "\u200B<") : text;
         }
 
-        private void ResetBlockCursorBlink()
+        private static string FormatLine(string text, string colorHex, string prefix, bool italic = false)
         {
-            // no-op — blink handled natively by InputField.caretBlinkRate
+            string escaped = EscapeRichText(text);
+            if (italic)
+                return "<color=" + colorHex + "><i>" + prefix + escaped + "</i></color>";
+            return "<color=" + colorHex + ">" + prefix + escaped + "</color>";
+        }
+
+        private static string FormatUserLine(string text)
+            => FormatLine(text, UIStyleConstants.UserTextHex, "> ");
+
+        private static string FormatAiLine(string text)
+            => FormatLine(text, UIStyleConstants.AiTextHex, "  ");
+
+        private static string FormatToolLine(string text)
+            => FormatLine(text, UIStyleConstants.ToolHex, "  ", italic: true);
+
+        private static string FormatMessageLine(ChatMessage msg)
+        {
+            return msg.Sender == MessageSender.User
+                ? FormatUserLine(msg.Text)
+                : FormatAiLine(msg.Text);
         }
 
         private static GameObject CreateObj(string name, Transform parent)

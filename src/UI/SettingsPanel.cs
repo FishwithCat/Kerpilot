@@ -151,7 +151,7 @@ namespace Kerpilot
         {
             var fieldObj = CreateObj("InputField", parent);
             var fieldBg = fieldObj.AddComponent<Image>();
-            fieldBg.sprite = ChatBubbleFactory.RoundedSprite;
+            fieldBg.sprite = SpriteFactory.RoundedSprite;
             fieldBg.type = Image.Type.Sliced;
             fieldBg.color = UIStyleConstants.InputBackground;
             var fieldElement = fieldObj.AddComponent<LayoutElement>();
@@ -211,7 +211,7 @@ namespace Kerpilot
         {
             var btnObj = CreateObj(label + "Button", parent);
             var btnBg = btnObj.AddComponent<Image>();
-            btnBg.sprite = ChatBubbleFactory.RoundedSprite;
+            btnBg.sprite = SpriteFactory.RoundedSprite;
             btnBg.type = Image.Type.Sliced;
             btnBg.color = bgColor;
             var btn = btnObj.AddComponent<Button>();
