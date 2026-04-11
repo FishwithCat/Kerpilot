@@ -24,6 +24,12 @@ namespace Kerpilot
             _chatWindow.Initialize(this);
         }
 
+        private void Update()
+        {
+            if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.K))
+                ToggleWindow();
+        }
+
         private void SyncToolbarButtonOff()
         {
             if (_toolbarButton != null)
@@ -57,7 +63,12 @@ namespace Kerpilot
                 () => _chatWindow?.Show(),
                 () => _chatWindow?.Hide(),
                 null, null, null, null,
-                ApplicationLauncher.AppScenes.ALWAYS,
+                ApplicationLauncher.AppScenes.SPACECENTER
+                    | ApplicationLauncher.AppScenes.FLIGHT
+                    | ApplicationLauncher.AppScenes.MAPVIEW
+                    | ApplicationLauncher.AppScenes.VAB
+                    | ApplicationLauncher.AppScenes.SPH
+                    | ApplicationLauncher.AppScenes.TRACKSTATION,
                 _toolbarIcon
             );
         }
@@ -71,9 +82,9 @@ namespace Kerpilot
 
         private void ToggleWindow()
         {
-            _chatWindow?.Toggle();
+            if (_chatWindow == null) return;
+            _chatWindow.Toggle();
 
-            // Sync toolbar button state
             if (_toolbarButton != null)
             {
                 if (_chatWindow.IsVisible)
