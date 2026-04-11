@@ -4,10 +4,10 @@ namespace Kerpilot
 {
     public static class ToolDefinitions
     {
-        private const string FlightToolsJson =
+        private const string ToolsJson =
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"get_vessel_parts\"," +
-                "\"description\":\"Get the active vessel's part list with counts, masses, and onboard resources. Use when the player asks about their rocket, ship, or vessel composition.\"," +
+                "\"description\":\"Get the vessel's part list with counts, masses, costs, and onboard resources. Works in both flight and VAB/SPH editor. Use when the player asks about their rocket, ship, or vessel composition.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
@@ -32,7 +32,7 @@ namespace Kerpilot
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"get_vessel_delta_v\"," +
-                "\"description\":\"Get the vessel's delta-v budget per stage: delta-v (vacuum/ASL/actual), TWR, ISP, thrust, burn time, and mass. Essential for determining if the vessel can reach orbit, escape atmosphere, or reach another body.\"," +
+                "\"description\":\"Get the vessel's delta-v budget per stage: delta-v (vacuum/ASL/actual), TWR, ISP, thrust, burn time, and mass. Works in both flight and VAB/SPH editor. Essential for determining if the vessel can reach orbit, escape atmosphere, or reach another body.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
@@ -57,7 +57,7 @@ namespace Kerpilot
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"analyze_vessel\"," +
-                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR (ASL for lower stages, vacuum for upper stages that fire above atmosphere). Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
+                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Works in both flight and VAB/SPH editor (assumes Kerbin launch in editor). Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR. Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
@@ -71,7 +71,7 @@ namespace Kerpilot
 
         public static string GetToolsJsonArray()
         {
-            return "[" + FlightToolsJson + "]";
+            return "[" + ToolsJson + "]";
         }
 
         public static string GetToolStatusLabel(string name)

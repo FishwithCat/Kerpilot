@@ -8,29 +8,86 @@ namespace Kerpilot
     {
         private const double KerbinSecondsPerDay = 21600.0;
 
+        /// <summary>
+        /// Returns parts + metadata from the active vessel (flight) or the ship
+        /// being built (VAB/SPH editor). Returns null with an error string if
+        /// neither is available.
+        /// </summary>
+        private static bool TryGetShipParts(out List<Part> parts, out string shipName,
+            out string situation, out double totalMass, out string error)
+        {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                var vessel = FlightGlobals.ActiveVessel;
+                if (vessel == null)
+                {
+                    parts = null; shipName = null; situation = null; totalMass = 0;
+                    error = "{\"error\":\"No active vessel.\"}";
+                    return false;
+                }
+                parts = vessel.parts;
+                shipName = vessel.vesselName;
+                situation = vessel.situation.ToString();
+                totalMass = vessel.totalMass;
+                error = null;
+                return true;
+            }
+
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                var ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
+                if (ship == null || ship.parts == null || ship.parts.Count == 0)
+                {
+                    parts = null; shipName = null; situation = null; totalMass = 0;
+                    error = "{\"error\":\"No ship in editor. Place at least one part.\"}";
+                    return false;
+                }
+                parts = ship.parts;
+                shipName = ship.shipName;
+                situation = "Editor_" + ship.shipFacility;
+                totalMass = 0;
+                foreach (var p in parts)
+                    totalMass += p.mass + p.GetResourceMass();
+                error = null;
+                return true;
+            }
+
+            parts = null; shipName = null; situation = null; totalMass = 0;
+            error = "{\"error\":\"Must be in flight or editor (VAB/SPH) scene.\"}";
+            return false;
+        }
+
         public static string GetVesselParts()
         {
-            var vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null)
-                return "{\"error\":\"No active vessel. You must be in flight scene with an active vessel.\"}";
+            List<Part> parts;
+            string shipName, situation, error;
+            double totalMass;
+            if (!TryGetShipParts(out parts, out shipName, out situation, out totalMass, out error))
+                return error;
 
             var partCounts = new Dictionary<string, int>();
             var partMasses = new Dictionary<string, double>();
-            double totalMass = vessel.totalMass;
+            var partCosts = new Dictionary<string, float>();
 
             var resources = new Dictionary<string, double[]>();
-            foreach (var part in vessel.parts)
+            float totalCost = 0f;
+            foreach (var part in parts)
             {
                 string title = part.partInfo.title;
+                float partCost = part.partInfo.cost + part.GetModuleCosts(part.partInfo.cost);
+                totalCost += partCost;
+
                 if (partCounts.ContainsKey(title))
                 {
                     partCounts[title]++;
                     partMasses[title] += part.mass + part.GetResourceMass();
+                    partCosts[title] += partCost;
                 }
                 else
                 {
                     partCounts[title] = 1;
                     partMasses[title] = part.mass + part.GetResourceMass();
+                    partCosts[title] = partCost;
                 }
 
                 foreach (PartResource res in part.Resources)
@@ -49,13 +106,15 @@ namespace Kerpilot
 
             var sb = new StringBuilder();
             sb.Append("{\"vessel_name\":\"");
-            sb.Append(JsonHelper.EscapeJsonString(vessel.vesselName));
+            sb.Append(JsonHelper.EscapeJsonString(shipName));
             sb.Append("\",\"total_parts\":");
-            sb.Append(vessel.parts.Count);
+            sb.Append(parts.Count);
             sb.Append(",\"total_mass_tons\":");
             sb.Append(totalMass.ToString("F2"));
+            sb.Append(",\"total_cost\":");
+            sb.Append(totalCost.ToString("F0"));
             sb.Append(",\"situation\":\"");
-            sb.Append(JsonHelper.EscapeJsonString(vessel.situation.ToString()));
+            sb.Append(JsonHelper.EscapeJsonString(situation));
             sb.Append("\",\"parts\":[");
 
             bool first = true;
@@ -69,6 +128,8 @@ namespace Kerpilot
                 sb.Append(kv.Value);
                 sb.Append(",\"mass_tons\":");
                 sb.Append(partMasses[kv.Key].ToString("F3"));
+                sb.Append(",\"cost\":");
+                sb.Append(partCosts[kv.Key].ToString("F0"));
                 sb.Append("}");
             }
 
@@ -416,19 +477,49 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        private static bool TryGetDeltaV(out VesselDeltaV dvInfo, out string shipName, out string error)
+        {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                var vessel = FlightGlobals.ActiveVessel;
+                if (vessel == null)
+                { dvInfo = null; shipName = null; error = "{\"error\":\"No active vessel.\"}"; return false; }
+                dvInfo = vessel.VesselDeltaV;
+                shipName = vessel.vesselName;
+                if (dvInfo == null)
+                { error = "{\"error\":\"Delta-v data not available. The vessel may not be fully loaded.\"}"; return false; }
+                error = null;
+                return true;
+            }
+
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                var ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
+                if (ship == null || ship.parts == null || ship.parts.Count == 0)
+                { dvInfo = null; shipName = null; error = "{\"error\":\"No ship in editor. Place at least one part.\"}"; return false; }
+                dvInfo = ship.vesselDeltaV;
+                shipName = ship.shipName;
+                if (dvInfo == null)
+                { error = "{\"error\":\"Delta-v data not available in editor. Ensure the delta-v display is enabled in settings.\"}"; return false; }
+                error = null;
+                return true;
+            }
+
+            dvInfo = null; shipName = null;
+            error = "{\"error\":\"Must be in flight or editor (VAB/SPH) scene.\"}";
+            return false;
+        }
+
         public static string GetVesselDeltaV()
         {
-            var vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null)
-                return "{\"error\":\"No active vessel.\"}";
-
-            var dvInfo = vessel.VesselDeltaV;
-            if (dvInfo == null)
-                return "{\"error\":\"Delta-v data not available. The vessel may not be fully loaded.\"}";
+            VesselDeltaV dvInfo;
+            string shipName, error;
+            if (!TryGetDeltaV(out dvInfo, out shipName, out error))
+                return error;
 
             var sb = new StringBuilder();
             sb.Append("{\"vessel_name\":\"");
-            sb.Append(JsonHelper.EscapeJsonString(vessel.vesselName));
+            sb.Append(JsonHelper.EscapeJsonString(shipName));
             sb.Append("\",\"total_delta_v_vacuum_m_s\":");
             sb.Append(dvInfo.TotalDeltaVVac.ToString("F1"));
             sb.Append(",\"total_delta_v_asl_m_s\":");
@@ -873,15 +964,34 @@ namespace Kerpilot
 
         public static string AnalyzeVessel()
         {
-            var vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null)
-                return "{\"error\":\"No active vessel.\"}";
+            VesselDeltaV dvInfo;
+            string shipName, dvError;
+            if (!TryGetDeltaV(out dvInfo, out shipName, out dvError))
+                return dvError;
 
-            var dvInfo = vessel.VesselDeltaV;
-            if (dvInfo == null)
-                return "{\"error\":\"Delta-v data not available. The vessel may not be fully loaded.\"}";
+            // Determine reference body and situation
+            CelestialBody body;
+            bool isOnSurface;
+            string situationStr;
+            Vessel vessel = null;
 
-            var body = vessel.mainBody;
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                vessel = FlightGlobals.ActiveVessel;
+                body = vessel.mainBody;
+                isOnSurface = vessel.situation == Vessel.Situations.LANDED
+                            || vessel.situation == Vessel.Situations.PRELAUNCH
+                            || vessel.situation == Vessel.Situations.SPLASHED;
+                situationStr = vessel.situation.ToString();
+            }
+            else
+            {
+                // Editor: assume launch from the home body (Kerbin)
+                body = FlightGlobals.GetHomeBody();
+                isOnSurface = true;
+                situationStr = "Editor_" + EditorLogic.fetch.ship.shipFacility;
+            }
+
             var stages = dvInfo.OperatingStageInfo;
 
             double mu = body.gravParameter;
@@ -917,15 +1027,12 @@ namespace Kerpilot
             double vesselDvActual = dvInfo.TotalDeltaVActual;
 
             var issues = new List<string>();
-            bool isOnSurface = vessel.situation == Vessel.Situations.LANDED
-                            || vessel.situation == Vessel.Situations.PRELAUNCH
-                            || vessel.situation == Vessel.Situations.SPLASHED;
 
             var sb = new StringBuilder();
             sb.Append("{\"body\":\"");
             sb.Append(JsonHelper.EscapeJsonString(body.bodyName));
             sb.Append("\",\"situation\":\"");
-            sb.Append(vessel.situation.ToString());
+            sb.Append(situationStr);
             sb.Append("\",\"dv_needed_orbit\":");
             sb.Append(F0(dvToOrbit));
             sb.Append(",\"dv_needed_escape\":");
@@ -1048,7 +1155,7 @@ namespace Kerpilot
                 else if (!canEscape)
                     issues.Add("Can orbit but dv " + F0(effectiveDv) + " < " + F0(dvSurfaceToEscape) + " needed for escape");
             }
-            else
+            else if (vessel != null)
             {
                 double currentSpeed = vessel.obt_velocity.magnitude;
                 double currentRadius = bodyRadius + vessel.altitude;

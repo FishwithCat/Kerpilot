@@ -25,7 +25,7 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
 - Draggable window
 - Input lock prevents chat keystrokes from triggering vessel controls
-- Available in Space Center, Flight, and Map View scenes (game data tools require Flight scene)
+- Available in Space Center, Flight, Map View, and VAB/SPH scenes (vessel tools work in both flight and editor)
 
 ## Requirements
 
