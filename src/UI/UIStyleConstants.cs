@@ -8,34 +8,34 @@ namespace Kerpilot
         public const float WindowWidth = 480f;
         public const float WindowHeight = 560f;
         public const float HeaderHeight = 44f;
-        public const float InputBarHeight = 48f;
         public const float InputFieldMinHeight = 36f;
-        public const float InputFieldMaxHeight = 120f;
 
-        // Bubble
-        public const float BubblePadding = 12f;
-        public const float BubbleMaxWidthRatio = 0.75f;
-        public const float MessageSpacing = 8f;
+        // Terminal
+        public const float MessageSpacing = 2f;
+        public const float TypingCharsPerSecond = 80f;
+        public const float TypingCatchUpMultiplier = 4f;
+        public const int TypingCatchUpThreshold = 20;
 
         // Font sizes
         public const int HeaderFontSize = 16;
-        public const int MessageFontSize = 14;
-        public const int TimestampFontSize = 12;
+        public const int UserFontSize = 14;
+        public const int AiFontSize = 12;
         public const int InputFontSize = 14;
-        public const int SettingsLabelFontSize = 13;
+        public const int SettingsLabelFontSize = 12;
 
-        // Colors
-        public static readonly Color BackgroundDark = HexColor("1E1E2E");
-        public static readonly Color PanelDark = HexColor("2A2A3C");
+        // Colors — terminal palette
+        public static readonly Color BackgroundDark = HexColor("0D1117");
+        public static readonly Color PanelDark = HexColor("161B22");
+        public static readonly Color HeaderColor = HexColor("161B22");
+        public static readonly Color InputBackground = HexColor("0D1117");
         public static readonly Color AccentBlue = HexColor("5B6EF5");
-        public static readonly Color UserBubbleColor = AccentBlue;
-        public static readonly Color AiBubbleColor = HexColor("3A3A4C");
         public static readonly Color TextLight = HexColor("E0E0E0");
-        public static readonly Color TextMuted = HexColor("888888");
-        public static readonly Color InputBackground = HexColor("1A1A2A");
-        public static readonly Color HeaderColor = HexColor("252538");
-        public static readonly Color SendButtonColor = AccentBlue;
-        public static readonly Color CloseButtonHover = HexColor("FF5555");
+        public static readonly Color TextMuted = HexColor("8B949E");
+        // Terminal-specific colors
+        public static readonly Color PromptColor = HexColor("39D353");
+        public static readonly Color UserTextColor = HexColor("39D353");
+        public static readonly Color AiTextColor = HexColor("E6EDF3");
+        public static readonly Color ToolColor = HexColor("D29922");
 
         // Font — use KSP's own font for sharp rendering
         private static Font _appFont;

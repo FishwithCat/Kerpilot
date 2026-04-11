@@ -83,7 +83,7 @@ namespace Kerpilot
             _statusText = statusObj.AddComponent<Text>();
             _statusText.text = "";
             _statusText.font = UIStyleConstants.AppFont;
-            _statusText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.TimestampFontSize);
+            _statusText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.SettingsLabelFontSize);
             _statusText.color = UIStyleConstants.AccentBlue;
             _statusText.alignment = TextAnchor.MiddleCenter;
             var statusElement = statusObj.AddComponent<LayoutElement>();

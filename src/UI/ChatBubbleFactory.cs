@@ -37,7 +37,6 @@ namespace Kerpilot
             {
                 for (int x = 0; x < size; x++)
                 {
-                    // Determine which corner region we're in
                     int cx = -1, cy = -1;
                     if (x < radius && y < radius) { cx = radius; cy = radius; }
                     else if (x >= size - radius && y < radius) { cx = size - radius - 1; cy = radius; }
@@ -47,7 +46,7 @@ namespace Kerpilot
                     if (cx >= 0)
                     {
                         float dist = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-                        float alpha = Mathf.Clamp01(radius - dist + 0.5f); // anti-aliased edge
+                        float alpha = Mathf.Clamp01(radius - dist + 0.5f);
                         pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
                     }
                     else
@@ -61,7 +60,6 @@ namespace Kerpilot
             tex.filterMode = FilterMode.Bilinear;
             tex.Apply();
 
-            // 9-slice border so the rounded corners don't stretch
             return Sprite.Create(tex,
                 new Rect(0, 0, size, size),
                 new Vector2(0.5f, 0.5f),
@@ -115,106 +113,108 @@ namespace Kerpilot
                 new Vector2(0.5f, 0.5f), 100f);
         }
 
-        public static GameObject CreateBubble(ChatMessage msg, Transform parent)
+        /// <summary>
+        /// Creates a terminal-style row with HorizontalLayoutGroup and a green "> " prompt prefix.
+        /// Used by both message lines and the inline input row.
+        /// </summary>
+        public static GameObject CreateTerminalRow(string name, Transform parent, bool showPrefix)
         {
-            bool isUser = msg.Sender == MessageSender.User;
-
-            // Root row with horizontal layout
-            var row = CreateObject("BubbleRow", parent);
+            var row = CreateObject(name, parent);
             var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
             rowLayout.childForceExpandWidth = false;
             rowLayout.childForceExpandHeight = false;
-            rowLayout.childAlignment = isUser ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
-            rowLayout.spacing = 0;
+            rowLayout.childAlignment = TextAnchor.UpperLeft;
+            rowLayout.spacing = UIStyleConstants.Scaled(4);
+            rowLayout.padding = new RectOffset(0, 0, 0, 0);
             var rowFitter = row.AddComponent<ContentSizeFitter>();
             rowFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             rowFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             var rowElement = row.AddComponent<LayoutElement>();
             rowElement.flexibleWidth = 1f;
 
-            // Spacer (pushes bubble to the correct side)
-            if (isUser)
+            if (showPrefix)
             {
-                var spacer = CreateObject("Spacer", row.transform);
-                var spacerElement = spacer.AddComponent<LayoutElement>();
-                spacerElement.flexibleWidth = 1f;
-            }
-
-            // Bubble container (vertical: background + timestamp)
-            var container = CreateObject("BubbleContainer", row.transform);
-            var containerLayout = container.AddComponent<VerticalLayoutGroup>();
-            containerLayout.childForceExpandWidth = false;
-            containerLayout.childForceExpandHeight = false;
-            containerLayout.childAlignment = isUser ? TextAnchor.UpperRight : TextAnchor.UpperLeft;
-            containerLayout.spacing = UIStyleConstants.Scaled(2f);
-            containerLayout.padding = new RectOffset(0, 0, 0, 0);
-            var containerElement = container.AddComponent<LayoutElement>();
-            containerElement.flexibleWidth = 0f;
-            float maxBubbleWidth = UIStyleConstants.Scaled(
-                UIStyleConstants.WindowWidth * UIStyleConstants.BubbleMaxWidthRatio);
-
-            // Background with message text
-            var bg = CreateObject("Background", container.transform);
-            var bgImage = bg.AddComponent<Image>();
-            bgImage.sprite = RoundedSprite;
-            bgImage.type = Image.Type.Sliced;
-            bgImage.color = isUser ? UIStyleConstants.UserBubbleColor : UIStyleConstants.AiBubbleColor;
-
-            var bgLayout = bg.AddComponent<VerticalLayoutGroup>();
-            int pad = UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding);
-            int padV = UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding - 2);
-            bgLayout.padding = new RectOffset(pad, pad, padV, padV);
-            bgLayout.childForceExpandWidth = false;
-            bgLayout.childForceExpandHeight = false;
-
-            var bgFitter = bg.AddComponent<ContentSizeFitter>();
-            bgFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            bgFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            // Message text
-            var textObj = CreateObject("MessageText", bg.transform);
-            var text = textObj.AddComponent<Text>();
-            text.text = msg.Text;
-            text.font = UIStyleConstants.AppFont;
-            text.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.MessageFontSize);
-            text.color = UIStyleConstants.TextLight;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.alignment = TextAnchor.UpperLeft;
-            var textElement = textObj.AddComponent<LayoutElement>();
-            float maxTextWidth = maxBubbleWidth - pad * 2;
-            textElement.preferredWidth = Mathf.Min(text.preferredWidth, maxTextWidth);
-            textElement.flexibleWidth = 0;
-
-            // Timestamp
-            var tsObj = CreateObject("Timestamp", container.transform);
-            var ts = tsObj.AddComponent<Text>();
-            ts.text = msg.Timestamp.ToString("h:mm tt");
-            ts.font = UIStyleConstants.AppFont;
-            ts.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.TimestampFontSize);
-            ts.color = UIStyleConstants.TextMuted;
-            ts.alignment = isUser ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
-            var tsFitter = tsObj.AddComponent<ContentSizeFitter>();
-            tsFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            tsFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            // Spacer for AI messages (pushes bubble left)
-            if (!isUser)
-            {
-                var spacer = CreateObject("Spacer", row.transform);
-                var spacerElement = spacer.AddComponent<LayoutElement>();
-                spacerElement.flexibleWidth = 1f;
+                var prefixObj = CreateObject("Prefix", row.transform);
+                var prefixText = prefixObj.AddComponent<Text>();
+                prefixText.text = ">";
+                prefixText.font = UIStyleConstants.AppFont;
+                prefixText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.UserFontSize);
+                prefixText.color = UIStyleConstants.PromptColor;
+                prefixText.alignment = TextAnchor.UpperLeft;
+                var prefixFitter = prefixObj.AddComponent<ContentSizeFitter>();
+                prefixFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+                prefixFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
 
             return row;
         }
 
         /// <summary>
-        /// Finds the MessageText Text component within a bubble row created by CreateBubble.
+        /// Creates a terminal-style message line (no bubble background, no timestamp).
+        /// User messages get a green "> " prefix; AI messages have no prefix.
         /// </summary>
-        public static Text GetMessageText(GameObject bubbleRow)
+        public static GameObject CreateMessageLine(ChatMessage msg, Transform parent)
         {
-            var t = bubbleRow.transform.Find("BubbleContainer/Background/MessageText");
+            bool isUser = msg.Sender == MessageSender.User;
+
+            if (isUser)
+            {
+                var row = CreateTerminalRow("MessageLine", parent, showPrefix: true);
+                AddContentText(row, msg.Text, UIStyleConstants.UserTextColor);
+                return row;
+            }
+
+            // AI messages: wrap in an outer container with top/bottom margin and left indent
+            var wrapper = CreateObject("MessageLine", parent);
+            var wrapperLayout = wrapper.AddComponent<VerticalLayoutGroup>();
+            wrapperLayout.childForceExpandWidth = true;
+            wrapperLayout.childForceExpandHeight = false;
+            wrapperLayout.spacing = 0;
+            int marginY = UIStyleConstants.ScaledInt(4);
+            int indentX = UIStyleConstants.ScaledInt(6);
+            wrapperLayout.padding = new RectOffset(indentX, 0, marginY, marginY);
+            var wrapperFitter = wrapper.AddComponent<ContentSizeFitter>();
+            wrapperFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            wrapperFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var wrapperElement = wrapper.AddComponent<LayoutElement>();
+            wrapperElement.flexibleWidth = 1f;
+
+            var textObj = CreateObject("Content", wrapper.transform);
+            var text = textObj.AddComponent<Text>();
+            text.text = msg.Text;
+            text.font = UIStyleConstants.AppFont;
+            text.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.AiFontSize);
+            text.color = UIStyleConstants.AiTextColor;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.alignment = TextAnchor.UpperLeft;
+            var textElement = textObj.AddComponent<LayoutElement>();
+            textElement.flexibleWidth = 1f;
+
+            return wrapper;
+        }
+
+        private static void AddContentText(GameObject row, string content, Color color)
+        {
+            var textObj = CreateObject("Content", row.transform);
+            var text = textObj.AddComponent<Text>();
+            text.text = content;
+            text.font = UIStyleConstants.AppFont;
+            text.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.UserFontSize);
+            text.color = color;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.alignment = TextAnchor.UpperLeft;
+            var textElement = textObj.AddComponent<LayoutElement>();
+            textElement.flexibleWidth = 1f;
+        }
+
+        /// <summary>
+        /// Finds the Content Text component within a message line created by CreateMessageLine.
+        /// </summary>
+        public static Text GetMessageText(GameObject lineRow)
+        {
+            var t = lineRow.transform.Find("Content");
             return t != null ? t.GetComponent<Text>() : null;
         }
 

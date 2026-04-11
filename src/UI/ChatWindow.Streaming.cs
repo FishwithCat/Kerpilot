@@ -10,7 +10,7 @@ namespace Kerpilot
         private IEnumerator StreamLlmResponse()
         {
             _isStreaming = true;
-            _sendButton.interactable = false;
+            _inputField.interactable = false;
 
             var thinkingObj = CreateStatusLabel("Thinking...");
             _coroutineHost.StartCoroutine(ScrollToBottom());
@@ -21,7 +21,7 @@ namespace Kerpilot
 
             _scrollPending = true;
             string latestText = null;
-            GameObject bubbleRow = null;
+            GameObject lineRow = null;
             Text messageText = null;
 
             // Single UI loop coroutine shared across all tool-call rounds
@@ -38,25 +38,16 @@ namespace Kerpilot
                     _settings,
                     onToken: (accumulated) =>
                     {
-                        // On first visible token, replace "Thinking..." with a real bubble.
-                        // Skip whitespace-only content (some models stream leading newlines).
-                        if (bubbleRow == null)
+                        if (lineRow == null)
                         {
                             if (accumulated.Trim().Length == 0)
                                 return;
                             Object.Destroy(thinkingObj);
                             thinkingObj = null;
                             var msg = new ChatMessage(MessageSender.AI, accumulated.TrimStart());
-                            bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
-                            messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
-                            if (messageText != null)
-                            {
-                                var textLayout = messageText.GetComponent<LayoutElement>();
-                                if (textLayout != null)
-                                    textLayout.preferredWidth = UIStyleConstants.Scaled(
-                                        UIStyleConstants.WindowWidth * UIStyleConstants.BubbleMaxWidthRatio)
-                                        - UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding) * 2;
-                            }
+                            lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
+                            InsertMessageLine(lineRow);
+                            messageText = ChatBubbleFactory.GetMessageText(lineRow);
                         }
                         latestText = accumulated;
                     },
@@ -71,14 +62,14 @@ namespace Kerpilot
                     },
                     onError: (error) =>
                     {
-                        // On error with no tokens yet, replace "Thinking..." with error in bubble
-                        if (bubbleRow == null)
+                        if (lineRow == null)
                         {
                             Object.Destroy(thinkingObj);
                             thinkingObj = null;
                             var msg = new ChatMessage(MessageSender.AI, error);
-                            bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
-                            messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                            lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
+                            InsertMessageLine(lineRow);
+                            messageText = ChatBubbleFactory.GetMessageText(lineRow);
                         }
                         latestText = error;
                     }
@@ -86,43 +77,37 @@ namespace Kerpilot
 
                 if (pendingToolCalls != null)
                 {
-                    // Check if LLM streamed visible content before the tool calls
                     string contentBeforeTools = latestText != null ? latestText.Trim() : null;
                     bool hasVisibleContent = !string.IsNullOrEmpty(contentBeforeTools);
 
-                    // Add assistant tool-call message to history (with content if any)
                     _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(
                         pendingToolCalls, hasVisibleContent ? contentBeforeTools : null));
 
-                    if (bubbleRow != null)
+                    if (lineRow != null)
                     {
                         if (hasVisibleContent)
                         {
-                            // Keep the bubble — update with trimmed text and reset for next round
                             messageText.text = contentBeforeTools;
                             LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
-                            bubbleRow = null;
+                            lineRow = null;
                             messageText = null;
                             latestText = null;
                         }
                         else
                         {
-                            // Whitespace-only — destroy the premature bubble
-                            Object.Destroy(bubbleRow);
-                            bubbleRow = null;
+                            Object.Destroy(lineRow);
+                            lineRow = null;
                             messageText = null;
                             latestText = null;
                         }
                     }
 
-                    // Destroy thinking label — we'll show per-tool status instead
                     if (thinkingObj != null)
                     {
                         Object.Destroy(thinkingObj);
                         thinkingObj = null;
                     }
 
-                    // Execute each tool: show per-tool status label
                     foreach (var tc in pendingToolCalls)
                     {
                         var statusObj = CreateStatusLabel(ToolDefinitions.GetToolStatusLabel(tc.FunctionName));
@@ -134,27 +119,23 @@ namespace Kerpilot
                         Object.Destroy(statusObj);
                     }
 
-                    // Wait one frame for cleanup
                     yield return null;
 
-                    // Show thinking label for next LLM round
                     thinkingObj = CreateStatusLabel("Thinking...");
                     needsMoreRounds = true;
                 }
             }
 
-            // Final UI update with complete text
             _scrollPending = false;
-            // Clean up thinking label if still present
             if (thinkingObj != null)
                 Object.Destroy(thinkingObj);
 
-            // If no bubble was created yet (e.g. non-streamed response after tool calls), create one now
-            if (bubbleRow == null && latestText != null)
+            if (lineRow == null && latestText != null)
             {
                 var msg = new ChatMessage(MessageSender.AI, latestText);
-                bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
-                messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                lineRow = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
+                InsertMessageLine(lineRow);
+                messageText = ChatBubbleFactory.GetMessageText(lineRow);
             }
             else if (messageText != null && latestText != null)
             {
@@ -163,30 +144,91 @@ namespace Kerpilot
             }
 
             _isStreaming = false;
-            _sendButton.interactable = true;
+            _inputField.interactable = true;
             _coroutineHost.StartCoroutine(ScrollToBottom());
         }
 
         /// <summary>
-        /// Throttled UI update loop during streaming: updates bubble text and scrolls at ~10fps.
+        /// Typewriter animation loop: reveals characters one by one with a blinking cursor.
+        /// Accelerates when the LLM produces text faster than the base typing speed.
         /// </summary>
         private IEnumerator StreamingUiLoop(System.Func<Text> getMessageText, System.Func<string> getLatest, System.Func<bool> isActive)
         {
-            string displayed = null;
-            var wait = new WaitForSeconds(0.1f);
+            int revealedCount = 0;
+            float charAccum = 0f;
+            float cursorTimer = 0f;
+            bool cursorVisible = true;
+            const float cursorBlinkInterval = 0.5f;
+            const string cursor = "\u2588"; // full block cursor
+
             while (isActive())
             {
+                float dt = Time.unscaledDeltaTime;
                 var mt = getMessageText();
-                string latest = getLatest();
-                if (latest != null && latest != displayed && mt != null)
+                string target = getLatest();
+
+                if (target != null && mt != null)
                 {
-                    mt.text = latest;
-                    displayed = latest;
-                    LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
+                    int targetLen = target.Length;
+                    int backlog = targetLen - revealedCount;
+
+                    if (backlog > 0)
+                    {
+                        // Accelerate when backlog grows to keep up with fast LLM output
+                        float speed = UIStyleConstants.TypingCharsPerSecond;
+                        if (backlog > UIStyleConstants.TypingCatchUpThreshold)
+                            speed *= UIStyleConstants.TypingCatchUpMultiplier;
+
+                        charAccum += speed * dt;
+                        int chars = (int)charAccum;
+                        if (chars > 0)
+                        {
+                            charAccum -= chars;
+                            revealedCount = Mathf.Min(revealedCount + chars, targetLen);
+                        }
+
+                        // Reset blink to visible while actively typing
+                        cursorVisible = true;
+                        cursorTimer = 0f;
+                    }
+                    else
+                    {
+                        // Blink cursor when caught up, waiting for more tokens
+                        cursorTimer += dt;
+                        if (cursorTimer >= cursorBlinkInterval)
+                        {
+                            cursorTimer -= cursorBlinkInterval;
+                            cursorVisible = !cursorVisible;
+                        }
+                    }
+
+                    string visible = target.Substring(0, revealedCount);
+                    string display = cursorVisible ? visible + cursor : visible;
+                    mt.text = display;
+
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRectTransform);
+                    if (_scrollRect != null)
+                        _scrollRect.verticalNormalizedPosition = 0f;
                 }
-                if (_autoScroll && _scrollRect != null)
+
+                yield return null;
+            }
+
+            // Streaming ended — flush remaining text and remove cursor
+            FlushTypewriter(getMessageText(), getLatest());
+        }
+
+        /// <summary>
+        /// Shows the full final text without the cursor character.
+        /// </summary>
+        private void FlushTypewriter(Text mt, string final)
+        {
+            if (mt != null && final != null)
+            {
+                mt.text = final;
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRectTransform);
+                if (_scrollRect != null)
                     _scrollRect.verticalNormalizedPosition = 0f;
-                yield return wait;
             }
         }
     }

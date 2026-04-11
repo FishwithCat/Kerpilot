@@ -25,11 +25,11 @@ src/
   KerpilotSettings.cs        # Settings persistence via KSP ConfigNode (API key, endpoint, model)
   UI/                        # User interface
     ChatWindow.cs            # Core window lifecycle, state, utilities (partial class)
-    ChatWindow.UI.cs         # UI construction: Canvas, header, message area, input bar (partial)
-    ChatWindow.Input.cs      # Input handling: text changes, resize, send (partial)
+    ChatWindow.UI.cs         # UI construction: Canvas, header, message area, inline input (partial)
+    ChatWindow.Input.cs      # Input handling: text changes, send (partial)
     ChatWindow.Streaming.cs  # LLM streaming: tool-call loop, UI updates during streaming (partial)
-    ChatBubbleFactory.cs     # Sprite generation (rounded-rect, Kerbal avatar, gear) and message bubbles
-    UIStyleConstants.cs      # Static design tokens: colors, dimensions, font sizes
+    ChatBubbleFactory.cs     # Sprite generation (rounded-rect, gear) and terminal-style message lines
+    UIStyleConstants.cs      # Static design tokens: terminal colors, dimensions, font sizes
     SettingsPanel.cs         # uGUI settings form (same-window panel swap with chat view)
     DragHandler.cs           # MonoBehaviour for window dragging via header
   Api/                       # LLM communication
@@ -51,7 +51,8 @@ tests/
 
 Key design decisions:
 - All UI is built programmatically via uGUI (no asset bundles, no OnGUI/IMGUI)
-- Rounded-rect sprites generated at runtime with 9-slice for bubble backgrounds
+- **Terminal-style interface**: Messages displayed as plain text lines (no bubble backgrounds). User messages prefixed with green `> `, AI responses in bright white. Input is inline at the bottom of the scrolling content area (no separate input bar) — like typing in a real console. `ChatBubbleFactory.CreateTerminalRow` provides the shared row layout for both message lines and the input row.
+- Rounded-rect sprites generated at runtime with 9-slice (used by settings panel input fields)
 - **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
 - **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 9 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. All tools require flight scene. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
 - **Skills (domain knowledge injection)**: `SkillDefinitions` stores 3 knowledge skills (orbital mechanics, rocket design, delta-v budget) as C# string constants. `SkillSelector` uses keyword matching on the user's latest message to select up to 2 relevant skills and appends their content to the system prompt. This happens in `LlmClient.SendChatRequest` before building the request body. Skills are compiled into the DLL (no external files).

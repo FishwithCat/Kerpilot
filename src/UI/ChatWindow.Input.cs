@@ -7,15 +7,14 @@ namespace Kerpilot
     {
         private void OnInputValueChanged(string text)
         {
-            // In MultiLineNewline mode, Enter inserts '\n' into the text.
-            // When IME is composing, Enter confirms the character (no '\n' inserted).
-            // So detecting '\n' reliably distinguishes "send" from "IME confirm".
+            // Reset block cursor to visible on any text change
+            ResetBlockCursorBlink();
+
             if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
             {
                 // Shift+Enter inserts a newline; plain Enter sends the message
                 if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
                 {
-                    ResizeInputField();
                     return;
                 }
                 // Strip the newline and send
@@ -23,40 +22,6 @@ namespace Kerpilot
                 OnSendClicked();
                 return;
             }
-            ResizeInputField();
-        }
-
-        private void ResizeInputField()
-        {
-            var textComp = _inputField.textComponent;
-            var rectSize = textComp.rectTransform.rect.size;
-            if (rectSize.x <= 0) return;
-
-            // Force text generation with current rect to get accurate line count
-            var settings = textComp.GetGenerationSettings(
-                new Vector2(rectSize.x, 0f)); // width-constrained, unlimited height
-            textComp.cachedTextGeneratorForLayout.Populate(_inputField.text, settings);
-
-            float lineHeight = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize) + 2f;
-            int lineCount = Mathf.Max(1, textComp.cachedTextGeneratorForLayout.lineCount);
-            float padding = UIStyleConstants.Scaled(8);
-            float desiredHeight = lineCount * lineHeight + padding;
-
-            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
-            float maxH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMaxHeight);
-            float clampedHeight = Mathf.Clamp(desiredHeight, minH, maxH);
-
-            _inputElement.preferredHeight = clampedHeight;
-            // Adjust input bar height: bar padding (12) + input field height
-            float barPad = UIStyleConstants.Scaled(12);
-            _inputBarElement.preferredHeight = clampedHeight + barPad;
-        }
-
-        private void ResetInputFieldSize()
-        {
-            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
-            _inputElement.preferredHeight = minH;
-            _inputBarElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
         }
 
         private void OnSendClicked()
@@ -68,8 +33,6 @@ namespace Kerpilot
 
             _inputField.text = "";
             _inputField.ActivateInputField();
-            ResetInputFieldSize();
-            _autoScroll = true;
 
             if (!_settings.IsConfigured)
             {

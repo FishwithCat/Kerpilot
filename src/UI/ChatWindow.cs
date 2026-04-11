@@ -13,12 +13,10 @@ namespace Kerpilot
         private GameObject _canvasObj;
         private GameObject _windowPanel;
         private GameObject _messageArea;
-        private GameObject _inputBar;
+        private GameObject _inputRow;
         private ScrollRect _scrollRect;
         private InputField _inputField;
         private LayoutElement _inputElement;
-        private LayoutElement _inputBarElement;
-        private Button _sendButton;
         private Transform _contentTransform;
         private RectTransform _contentRectTransform;
         private MonoBehaviour _coroutineHost;
@@ -28,7 +26,6 @@ namespace Kerpilot
         private static readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
         private bool _isStreaming;
         private bool _scrollPending;
-        private bool _autoScroll = true;
 
         public bool IsVisible => _canvasObj != null && _canvasObj.activeSelf;
 
@@ -40,16 +37,16 @@ namespace Kerpilot
 
             if (_conversationHistory.Count == 0)
             {
-                AddMessage(new ChatMessage(MessageSender.AI, "Hello! I'm Kerpilot. How can I help you today?"));
+                AddMessage(new ChatMessage(MessageSender.AI, "kerpilot ready. type a message to begin."));
             }
             else
             {
-                // Restore previous conversation bubbles
+                // Restore previous conversation lines
                 foreach (var msg in _conversationHistory)
                 {
                     if (msg.Role == MessageRole.Tool || (msg.Role == MessageRole.Assistant && msg.ToolCalls != null))
                         continue;
-                    ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                    InsertMessageLine(ChatBubbleFactory.CreateMessageLine(msg, _contentTransform));
                 }
                 _coroutineHost.StartCoroutine(ScrollToBottom());
             }
@@ -66,6 +63,7 @@ namespace Kerpilot
         public void Show()
         {
             _canvasObj.SetActive(true);
+            _coroutineHost.StartCoroutine(ScrollToBottom());
         }
 
         public void Hide()
@@ -87,14 +85,33 @@ namespace Kerpilot
         {
             _settingsPanel.Hide();
             _messageArea.SetActive(true);
-            _inputBar.SetActive(true);
         }
 
         private void ShowSettings()
         {
             _messageArea.SetActive(false);
-            _inputBar.SetActive(false);
             _settingsPanel.Show();
+        }
+
+        private void FocusInput()
+        {
+            if (_inputField != null && _inputField.interactable)
+            {
+                _inputField.ActivateInputField();
+                // ActivateInputField selects all text; defer caret move to deselect
+                _coroutineHost.StartCoroutine(MoveCaretToEnd());
+            }
+        }
+
+        private IEnumerator MoveCaretToEnd()
+        {
+            yield return null;
+            if (_inputField != null)
+            {
+                _inputField.caretPosition = _inputField.text.Length;
+                _inputField.selectionAnchorPosition = _inputField.text.Length;
+                _inputField.selectionFocusPosition = _inputField.text.Length;
+            }
         }
 
         private void SetInputLock()
@@ -107,9 +124,19 @@ namespace Kerpilot
             InputLockManager.RemoveControlLock(InputLockId);
         }
 
+        /// <summary>
+        /// Inserts a message line before the inline input row so it always stays at the bottom.
+        /// </summary>
+        private void InsertMessageLine(GameObject lineObj)
+        {
+            if (_inputRow != null)
+                lineObj.transform.SetSiblingIndex(_inputRow.transform.GetSiblingIndex());
+        }
+
         private void AddMessage(ChatMessage msg)
         {
-            ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+            var lineObj = ChatBubbleFactory.CreateMessageLine(msg, _contentTransform);
+            InsertMessageLine(lineObj);
             _coroutineHost.StartCoroutine(ScrollToBottom());
         }
 
@@ -127,13 +154,20 @@ namespace Kerpilot
             var label = obj.AddComponent<Text>();
             label.text = text;
             label.font = UIStyleConstants.AppFont;
-            label.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.MessageFontSize);
+            label.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.AiFontSize);
             label.fontStyle = FontStyle.Italic;
-            label.color = UIStyleConstants.TextMuted;
+            label.color = UIStyleConstants.ToolColor;
             label.alignment = TextAnchor.MiddleLeft;
             var fitter = obj.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            // Insert before inline input
+            InsertMessageLine(obj);
             return obj;
+        }
+
+        private void ResetBlockCursorBlink()
+        {
+            // no-op — blink handled natively by InputField.caretBlinkRate
         }
 
         private static GameObject CreateObj(string name, Transform parent)

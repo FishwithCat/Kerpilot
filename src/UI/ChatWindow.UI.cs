@@ -52,9 +52,8 @@ namespace Kerpilot
 
             BuildHeader(_windowPanel.transform);
             BuildMessageArea(_windowPanel.transform);
-            BuildInputBar(_windowPanel.transform);
 
-            // Settings panel (initially hidden, occupies same space as message area + input bar)
+            // Settings panel (initially hidden, occupies same space as message area)
             _settingsPanel = new SettingsPanel(_windowPanel.transform, _settings, ShowChat);
         }
 
@@ -78,7 +77,7 @@ namespace Kerpilot
             // Title
             var titleObj = CreateObj("Title", header.transform);
             var titleText = titleObj.AddComponent<Text>();
-            titleText.text = "Kerpilot";
+            titleText.text = "kerpilot";
             titleText.font = UIStyleConstants.AppFont;
             titleText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.HeaderFontSize);
             titleText.fontStyle = FontStyle.Bold;
@@ -173,7 +172,7 @@ namespace Kerpilot
             contentRect.pivot = new Vector2(0.5f, 1);
             contentRect.sizeDelta = new Vector2(0, 0);
 
-            int contentPad = UIStyleConstants.ScaledInt(12);
+            int contentPad = UIStyleConstants.ScaledInt(8);
             var contentLayout = content.AddComponent<VerticalLayoutGroup>();
             contentLayout.childForceExpandWidth = true;
             contentLayout.childForceExpandHeight = false;
@@ -186,70 +185,36 @@ namespace Kerpilot
 
             _scrollRect.content = contentRect;
 
-            // Track user scroll to disable auto-scroll when user scrolls up
-            _scrollRect.onValueChanged.AddListener(OnScrollValueChanged);
+            // Click anywhere in the console area to focus input
+            var clickHandler = _messageArea.AddComponent<EventTrigger>();
+            var pointerClick = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
+            pointerClick.callback.AddListener((_) => FocusInput());
+            clickHandler.triggers.Add(pointerClick);
+
+            // Inline input at the bottom of the content area
+            BuildInlineInput(_contentTransform);
         }
 
-        private void OnScrollValueChanged(Vector2 pos)
+        private void BuildInlineInput(Transform contentParent)
         {
-            // Near bottom (within threshold) → re-enable auto-scroll
-            // Scrolled up → disable auto-scroll so user can read history
-            _autoScroll = pos.y <= 0.01f;
-        }
+            _inputRow = ChatBubbleFactory.CreateTerminalRow("InputRow", contentParent, showPrefix: true);
 
-        private void BuildInputBar(Transform parent)
-        {
-            _inputBar = CreateObj("InputBar", parent);
-            var barImage = _inputBar.AddComponent<Image>();
-            barImage.color = UIStyleConstants.PanelDark;
-            _inputBarElement = _inputBar.AddComponent<LayoutElement>();
-            _inputBarElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
-            _inputBarElement.flexibleHeight = 0;
-
-            var barLayout = _inputBar.AddComponent<HorizontalLayoutGroup>();
-            barLayout.childForceExpandWidth = false;
-            barLayout.childForceExpandHeight = false;
-            barLayout.childAlignment = TextAnchor.MiddleCenter;
-            barLayout.padding = new RectOffset(
-                UIStyleConstants.ScaledInt(8), UIStyleConstants.ScaledInt(8),
-                UIStyleConstants.ScaledInt(6), UIStyleConstants.ScaledInt(6));
-            barLayout.spacing = UIStyleConstants.Scaled(8);
-
-            // Input field
-            var inputObj = CreateObj("InputField", _inputBar.transform);
+            var inputObj = CreateObj("InputField", _inputRow.transform);
             var inputBg = inputObj.AddComponent<Image>();
-            inputBg.sprite = ChatBubbleFactory.RoundedSprite;
-            inputBg.type = Image.Type.Sliced;
-            inputBg.color = UIStyleConstants.InputBackground;
+            inputBg.color = new Color(0, 0, 0, 0); // fully transparent
             _inputElement = inputObj.AddComponent<LayoutElement>();
             _inputElement.flexibleWidth = 1f;
             _inputElement.minHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
             _inputElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
 
-            int inputPadH = UIStyleConstants.ScaledInt(10);
-            int inputPadV = UIStyleConstants.ScaledInt(6);
+            int inputPadH = UIStyleConstants.ScaledInt(2);
+            int inputPadV = UIStyleConstants.ScaledInt(2);
 
-            // Placeholder
-            var placeholderObj = CreateObj("Placeholder", inputObj.transform);
-            var placeholder = placeholderObj.AddComponent<Text>();
-            placeholder.text = "Type a message...";
-            placeholder.font = UIStyleConstants.AppFont;
-            placeholder.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize);
-            placeholder.fontStyle = FontStyle.Italic;
-            placeholder.color = UIStyleConstants.TextMuted;
-            placeholder.alignment = TextAnchor.UpperLeft;
-            var phRect = placeholderObj.GetComponent<RectTransform>();
-            phRect.anchorMin = Vector2.zero;
-            phRect.anchorMax = Vector2.one;
-            phRect.offsetMin = new Vector2(inputPadH, inputPadV);
-            phRect.offsetMax = new Vector2(-inputPadH, -inputPadV);
-
-            // Input text
             var inputTextObj = CreateObj("Text", inputObj.transform);
             var inputText = inputTextObj.AddComponent<Text>();
             inputText.font = UIStyleConstants.AppFont;
             inputText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize);
-            inputText.color = UIStyleConstants.TextLight;
+            inputText.color = UIStyleConstants.UserTextColor;
             inputText.alignment = TextAnchor.UpperLeft;
             inputText.horizontalOverflow = HorizontalWrapMode.Wrap;
             inputText.verticalOverflow = VerticalWrapMode.Overflow;
@@ -262,10 +227,11 @@ namespace Kerpilot
 
             _inputField = inputObj.AddComponent<InputField>();
             _inputField.textComponent = inputText;
-            _inputField.placeholder = placeholder;
-            // Use MultiLineNewline so Enter does NOT trigger onEndEdit/deactivate.
-            // This prevents IME confirmation Enter from being treated as "send".
             _inputField.lineType = InputField.LineType.MultiLineNewline;
+            _inputField.caretWidth = UIStyleConstants.ScaledInt(8);
+            _inputField.caretBlinkRate = 0.53f;
+            _inputField.caretColor = UIStyleConstants.AiTextColor;
+            _inputField.selectionColor = new Color(0.35f, 0.43f, 0.76f, 0.4f);
             _inputField.onValueChanged.AddListener(OnInputValueChanged);
 
             // Lock game controls when input is focused
@@ -276,35 +242,6 @@ namespace Kerpilot
             var deselectEntry = new EventTrigger.Entry { eventID = EventTriggerType.Deselect };
             deselectEntry.callback.AddListener((_) => RemoveInputLock());
             trigger.triggers.Add(deselectEntry);
-
-            // Send button
-            var sendObj = CreateObj("SendButton", _inputBar.transform);
-            var sendBg = sendObj.AddComponent<Image>();
-            sendBg.sprite = ChatBubbleFactory.RoundedSprite;
-            sendBg.type = Image.Type.Sliced;
-            sendBg.color = UIStyleConstants.SendButtonColor;
-            _sendButton = sendObj.AddComponent<Button>();
-            var sendElement = sendObj.AddComponent<LayoutElement>();
-            sendElement.minWidth = UIStyleConstants.Scaled(60);
-            sendElement.preferredWidth = UIStyleConstants.Scaled(60);
-            sendElement.minHeight = UIStyleConstants.Scaled(36);
-            sendElement.preferredHeight = UIStyleConstants.Scaled(36);
-            sendElement.flexibleWidth = 0;
-
-            var sendLabelObj = CreateObj("SendLabel", sendObj.transform);
-            var sendLabel = sendLabelObj.AddComponent<Text>();
-            sendLabel.text = "Send";
-            sendLabel.font = UIStyleConstants.AppFont;
-            sendLabel.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.InputFontSize);
-            sendLabel.fontStyle = FontStyle.Bold;
-            sendLabel.color = Color.white;
-            sendLabel.alignment = TextAnchor.MiddleCenter;
-            var slRect = sendLabelObj.GetComponent<RectTransform>();
-            slRect.anchorMin = Vector2.zero;
-            slRect.anchorMax = Vector2.one;
-            slRect.sizeDelta = Vector2.zero;
-
-            _sendButton.onClick.AddListener(OnSendClicked);
         }
     }
 }
