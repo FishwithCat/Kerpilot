@@ -22,7 +22,8 @@ namespace Kerpilot
         private MonoBehaviour _coroutineHost;
         private SettingsPanel _settingsPanel;
         private KerpilotSettings _settings;
-        private readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
+        // Static so conversation history survives scene changes
+        private static readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
         private bool _isStreaming;
         private bool _scrollPending;
 
@@ -33,7 +34,23 @@ namespace Kerpilot
             _coroutineHost = host;
             _settings = KerpilotSettings.Load();
             BuildUI();
-            AddMessage(new ChatMessage(MessageSender.AI, "Hello! I'm Kerpilot. How can I help you today?"));
+
+            if (_conversationHistory.Count == 0)
+            {
+                AddMessage(new ChatMessage(MessageSender.AI, "Hello! I'm Kerpilot. How can I help you today?"));
+            }
+            else
+            {
+                // Restore previous conversation bubbles
+                foreach (var msg in _conversationHistory)
+                {
+                    if (msg.Role == MessageRole.Tool || (msg.Role == MessageRole.Assistant && msg.ToolCalls != null))
+                        continue;
+                    ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                }
+                _coroutineHost.StartCoroutine(ScrollToBottom());
+            }
+
             Hide();
         }
 
