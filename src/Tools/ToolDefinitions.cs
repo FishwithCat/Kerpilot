@@ -22,7 +22,12 @@ namespace Kerpilot
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"get_active_contracts\"," +
-                "\"description\":\"Get all currently active contracts with their objectives, completion state, and rewards. Use when the player asks about their missions or contracts.\"," +
+                "\"description\":\"Get all currently active (accepted) contracts with their objectives, completion state, and rewards. Use when the player asks about their current missions or accepted contracts.\"," +
+                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
+            "}}," +
+            "{\"type\":\"function\",\"function\":{" +
+                "\"name\":\"get_offered_contracts\"," +
+                "\"description\":\"Get all currently offered (available) contracts that the player can accept, with their objectives, rewards, deadlines, and prestige level. Use when the player asks what contracts are available, what missions they can take, or wants to choose a new contract.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
@@ -69,6 +74,7 @@ namespace Kerpilot
                 case "get_part_info": return "Looking up part info...";
                 case "get_celestial_body": return "Querying celestial body...";
                 case "get_active_contracts": return "Checking contracts...";
+                case "get_offered_contracts": return "Checking available contracts...";
                 case "get_vessel_delta_v": return "Calculating delta-v...";
                 case "get_vessel_orbit": return "Reading orbit data...";
                 case "get_vessel_status": return "Reading flight status...";
@@ -98,6 +104,9 @@ namespace Kerpilot
 
                     case "get_active_contracts":
                         return GameDataTools.GetActiveContracts();
+
+                    case "get_offered_contracts":
+                        return GameDataTools.GetOfferedContracts();
 
                     case "get_vessel_delta_v":
                         return GameDataTools.GetVesselDeltaV();

@@ -6,6 +6,8 @@ namespace Kerpilot
 {
     public static class GameDataTools
     {
+        private const double KerbinSecondsPerDay = 21600.0;
+
         public static string GetVesselParts()
         {
             var vessel = FlightGlobals.ActiveVessel;
@@ -340,6 +342,70 @@ namespace Kerpilot
                     sb.Append(JsonHelper.EscapeJsonString(param.Title));
                     sb.Append("\",\"state\":\"");
                     sb.Append(JsonHelper.EscapeJsonString(param.State.ToString()));
+                    sb.Append("\"}");
+                }
+
+                sb.Append("]}");
+            }
+
+            sb.Append("]}");
+            return sb.ToString();
+        }
+
+        public static string GetOfferedContracts()
+        {
+            var contractSystem = Contracts.ContractSystem.Instance;
+            if (contractSystem == null)
+                return "{\"error\":\"Contract system not available. It may not be loaded yet.\"}";
+
+            var contracts = contractSystem.Contracts;
+            if (contracts == null || contracts.Count == 0)
+                return "{\"contracts\":[]}";
+
+            var sb = new StringBuilder();
+            sb.Append("{\"contracts\":[");
+
+            bool first = true;
+            foreach (var contract in contracts)
+            {
+                if (contract.ContractState != Contracts.Contract.State.Offered)
+                    continue;
+
+                if (!first) sb.Append(",");
+                first = false;
+
+                sb.Append("{\"title\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(contract.Title));
+                sb.Append("\",\"description\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(contract.Description));
+                sb.Append("\",\"prestige\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(contract.Prestige.ToString()));
+                sb.Append("\",\"deadline_days\":");
+                double deadlineDays = contract.TimeDeadline > 0
+                    ? (contract.TimeDeadline - Planetarium.GetUniversalTime()) / KerbinSecondsPerDay
+                    : -1;
+                sb.Append(deadlineDays > 0 ? deadlineDays.ToString("F1") : "null");
+                sb.Append(",\"rewards\":{\"funds\":");
+                sb.Append(contract.FundsCompletion.ToString("F0"));
+                sb.Append(",\"advance\":");
+                sb.Append(contract.FundsAdvance.ToString("F0"));
+                sb.Append(",\"science\":");
+                sb.Append(contract.ScienceCompletion.ToString("F1"));
+                sb.Append(",\"reputation\":");
+                sb.Append(contract.ReputationCompletion.ToString("F1"));
+                sb.Append("},\"penalties\":{\"funds\":");
+                sb.Append(contract.FundsFailure.ToString("F0"));
+                sb.Append(",\"reputation\":");
+                sb.Append(contract.ReputationFailure.ToString("F1"));
+                sb.Append("},\"parameters\":[");
+
+                bool firstParam = true;
+                foreach (var param in contract.AllParameters)
+                {
+                    if (!firstParam) sb.Append(",");
+                    firstParam = false;
+                    sb.Append("{\"title\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(param.Title));
                     sb.Append("\"}");
                 }
 

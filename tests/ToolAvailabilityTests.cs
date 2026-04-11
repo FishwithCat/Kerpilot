@@ -13,6 +13,7 @@ namespace Kerpilot.Tests
             "get_part_info",
             "get_celestial_body",
             "get_active_contracts",
+            "get_offered_contracts",
             "get_vessel_delta_v",
             "get_vessel_orbit",
             "get_vessel_status",
@@ -66,7 +67,7 @@ namespace Kerpilot.Tests
                 count++;
                 pos = idx + 1;
             }
-            Assert.That(count, Is.EqualTo(10), "Expected exactly 10 tool definitions");
+            Assert.That(count, Is.EqualTo(11), "Expected exactly 11 tool definitions");
         }
 
         [Test]
