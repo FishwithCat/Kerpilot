@@ -1,10 +1,13 @@
 # Kerpilot
 
-A Kerbal Space Program mod that provides a modern chat dialog built with Unity uGUI. Designed as a foundation for future LLM integration.
+A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
 
 ## Features
 
 - Modern dark-themed chat interface with rounded message bubbles
+- LLM integration with streaming responses (token-by-token display)
+- Settings panel to configure API endpoint, API key, and model
+- Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
 - Draggable window
 - Input lock prevents chat keystrokes from triggering vessel controls
@@ -53,8 +56,10 @@ ln -s "$(pwd)/GameData/Kerpilot" "/path/to/Kerbal Space Program/GameData/Kerpilo
 
 1. Launch KSP and enter Space Center or Flight
 2. Click the **K** toolbar button or press **Ctrl+K** to open the chat window
-3. Type a message and press **Send** or **Enter**
-4. The current MVP replies with "Thinking..." to all messages
+3. Click the **gear icon** (⚙) in the header to open Settings
+4. Enter your API endpoint (default: `https://api.openai.com/v1`), API key, and model name
+5. Click **Save**, then **Back** to return to chat
+6. Type a message and press **Send** or **Enter** — the AI will respond with streamed tokens
 
 ## License
 

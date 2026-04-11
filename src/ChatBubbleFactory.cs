@@ -154,6 +154,15 @@ namespace Kerpilot
             return row;
         }
 
+        /// <summary>
+        /// Finds the MessageText Text component within a bubble row created by CreateBubble.
+        /// </summary>
+        public static Text GetMessageText(GameObject bubbleRow)
+        {
+            var t = bubbleRow.transform.Find("BubbleContainer/Background/MessageText");
+            return t != null ? t.GetComponent<Text>() : null;
+        }
+
         private static GameObject CreateObject(string name, Transform parent)
         {
             var obj = new GameObject(name, typeof(RectTransform));

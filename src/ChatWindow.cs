@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -11,16 +12,26 @@ namespace Kerpilot
 
         private GameObject _canvasObj;
         private GameObject _windowPanel;
+        private GameObject _messageArea;
+        private GameObject _inputBar;
         private ScrollRect _scrollRect;
         private InputField _inputField;
+        private Button _sendButton;
         private Transform _contentTransform;
+        private RectTransform _contentRectTransform;
         private MonoBehaviour _coroutineHost;
+        private SettingsPanel _settingsPanel;
+        private KerpilotSettings _settings;
+        private readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
+        private bool _isStreaming;
+        private bool _scrollPending;
 
         public bool IsVisible => _canvasObj != null && _canvasObj.activeSelf;
 
         public void Initialize(MonoBehaviour host)
         {
             _coroutineHost = host;
+            _settings = KerpilotSettings.Load();
             BuildUI();
             AddMessage(new ChatMessage(MessageSender.AI, "Hello! I'm Kerpilot. How can I help you today?"));
             Hide();
@@ -49,6 +60,20 @@ namespace Kerpilot
             RemoveInputLock();
             if (_canvasObj != null)
                 Object.Destroy(_canvasObj);
+        }
+
+        private void ShowChat()
+        {
+            _settingsPanel.Hide();
+            _messageArea.SetActive(true);
+            _inputBar.SetActive(true);
+        }
+
+        private void ShowSettings()
+        {
+            _messageArea.SetActive(false);
+            _inputBar.SetActive(false);
+            _settingsPanel.Show();
         }
 
         private void SetInputLock()
@@ -108,6 +133,9 @@ namespace Kerpilot
             BuildHeader(_windowPanel.transform);
             BuildMessageArea(_windowPanel.transform);
             BuildInputBar(_windowPanel.transform);
+
+            // Settings panel (initially hidden, occupies same space as message area + input bar)
+            _settingsPanel = new SettingsPanel(_windowPanel.transform, _settings, ShowChat);
         }
 
         private void BuildHeader(Transform parent)
@@ -137,6 +165,24 @@ namespace Kerpilot
             titleText.color = UIStyleConstants.TextLight;
             var titleElement = titleObj.AddComponent<LayoutElement>();
             titleElement.flexibleWidth = 1f;
+
+            // Settings button with programmatic gear icon
+            var settingsObj = CreateObj("SettingsButton", header.transform);
+            var settingsBtnImage = settingsObj.AddComponent<Image>();
+            settingsBtnImage.sprite = CreateGearSprite();
+            settingsBtnImage.color = UIStyleConstants.TextMuted;
+            var settingsBtn = settingsObj.AddComponent<Button>();
+            var settingsElement = settingsObj.AddComponent<LayoutElement>();
+            settingsElement.preferredWidth = UIStyleConstants.Scaled(24);
+            settingsElement.preferredHeight = UIStyleConstants.Scaled(24);
+
+            settingsBtn.onClick.AddListener(() =>
+            {
+                if (_settingsPanel.IsVisible)
+                    ShowChat();
+                else
+                    ShowSettings();
+            });
 
             // Close button
             var closeObj = CreateObj("CloseButton", header.transform);
@@ -168,23 +214,23 @@ namespace Kerpilot
 
         private void BuildMessageArea(Transform parent)
         {
-            var area = CreateObj("MessageArea", parent);
-            var areaElement = area.AddComponent<LayoutElement>();
+            _messageArea = CreateObj("MessageArea", parent);
+            var areaElement = _messageArea.AddComponent<LayoutElement>();
             areaElement.flexibleHeight = 1f;
 
             // ScrollRect setup
-            _scrollRect = area.AddComponent<ScrollRect>();
+            _scrollRect = _messageArea.AddComponent<ScrollRect>();
             _scrollRect.horizontal = false;
             _scrollRect.vertical = true;
             _scrollRect.movementType = ScrollRect.MovementType.Clamped;
             _scrollRect.scrollSensitivity = UIStyleConstants.Scaled(30f);
 
             // Background
-            var areaBg = area.AddComponent<Image>();
+            var areaBg = _messageArea.AddComponent<Image>();
             areaBg.color = UIStyleConstants.BackgroundDark;
 
             // Viewport
-            var viewport = CreateObj("Viewport", area.transform);
+            var viewport = CreateObj("Viewport", _messageArea.transform);
             var vpRect = viewport.GetComponent<RectTransform>();
             vpRect.anchorMin = Vector2.zero;
             vpRect.anchorMax = Vector2.one;
@@ -200,7 +246,8 @@ namespace Kerpilot
             // Content
             var content = CreateObj("Content", viewport.transform);
             _contentTransform = content.transform;
-            var contentRect = content.GetComponent<RectTransform>();
+            _contentRectTransform = content.GetComponent<RectTransform>();
+            var contentRect = _contentRectTransform;
             contentRect.anchorMin = new Vector2(0, 1);
             contentRect.anchorMax = new Vector2(1, 1);
             contentRect.pivot = new Vector2(0.5f, 1);
@@ -222,14 +269,14 @@ namespace Kerpilot
 
         private void BuildInputBar(Transform parent)
         {
-            var bar = CreateObj("InputBar", parent);
-            var barImage = bar.AddComponent<Image>();
+            _inputBar = CreateObj("InputBar", parent);
+            var barImage = _inputBar.AddComponent<Image>();
             barImage.color = UIStyleConstants.PanelDark;
-            var barElement = bar.AddComponent<LayoutElement>();
+            var barElement = _inputBar.AddComponent<LayoutElement>();
             barElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputBarHeight);
             barElement.flexibleHeight = 0;
 
-            var barLayout = bar.AddComponent<HorizontalLayoutGroup>();
+            var barLayout = _inputBar.AddComponent<HorizontalLayoutGroup>();
             barLayout.childForceExpandWidth = false;
             barLayout.childForceExpandHeight = false;
             barLayout.childAlignment = TextAnchor.MiddleCenter;
@@ -239,7 +286,7 @@ namespace Kerpilot
             barLayout.spacing = UIStyleConstants.Scaled(8);
 
             // Input field
-            var inputObj = CreateObj("InputField", bar.transform);
+            var inputObj = CreateObj("InputField", _inputBar.transform);
             var inputBg = inputObj.AddComponent<Image>();
             inputBg.sprite = ChatBubbleFactory.RoundedSprite;
             inputBg.type = Image.Type.Sliced;
@@ -294,12 +341,12 @@ namespace Kerpilot
             trigger.triggers.Add(deselectEntry);
 
             // Send button
-            var sendObj = CreateObj("SendButton", bar.transform);
+            var sendObj = CreateObj("SendButton", _inputBar.transform);
             var sendBg = sendObj.AddComponent<Image>();
             sendBg.sprite = ChatBubbleFactory.RoundedSprite;
             sendBg.type = Image.Type.Sliced;
             sendBg.color = UIStyleConstants.SendButtonColor;
-            var sendBtn = sendObj.AddComponent<Button>();
+            _sendButton = sendObj.AddComponent<Button>();
             var sendElement = sendObj.AddComponent<LayoutElement>();
             sendElement.preferredWidth = UIStyleConstants.Scaled(60);
             sendElement.preferredHeight = UIStyleConstants.Scaled(36);
@@ -317,7 +364,7 @@ namespace Kerpilot
             slRect.anchorMax = Vector2.one;
             slRect.sizeDelta = Vector2.zero;
 
-            sendBtn.onClick.AddListener(OnSendClicked);
+            _sendButton.onClick.AddListener(OnSendClicked);
         }
 
         private void OnInputEndEdit(string text)
@@ -330,20 +377,135 @@ namespace Kerpilot
 
         private void OnSendClicked()
         {
+            if (_isStreaming) return;
+
             string text = _inputField.text.Trim();
             if (string.IsNullOrEmpty(text)) return;
 
             _inputField.text = "";
             _inputField.ActivateInputField();
 
-            AddMessage(new ChatMessage(MessageSender.User, text));
-            _coroutineHost.StartCoroutine(SimulateResponse());
+            if (!_settings.IsConfigured)
+            {
+                AddMessage(new ChatMessage(MessageSender.User, text));
+                AddMessage(new ChatMessage(MessageSender.AI,
+                    "Please configure your API key in Settings to start chatting."));
+                ShowSettings();
+                return;
+            }
+
+            var userMsg = new ChatMessage(MessageSender.User, text);
+            _conversationHistory.Add(userMsg);
+            AddMessage(userMsg);
+            _coroutineHost.StartCoroutine(StreamLlmResponse());
         }
 
-        private IEnumerator SimulateResponse()
+        private IEnumerator StreamLlmResponse()
         {
-            yield return new WaitForSeconds(1f);
-            AddMessage(new ChatMessage(MessageSender.AI, "Thinking..."));
+            _isStreaming = true;
+            _sendButton.interactable = false;
+
+            // Show plain "Thinking..." label (no bubble)
+            var thinkingObj = CreateObj("Thinking", _contentTransform);
+            var thinkingText = thinkingObj.AddComponent<Text>();
+            thinkingText.text = "Thinking...";
+            thinkingText.font = UIStyleConstants.AppFont;
+            thinkingText.fontSize = UIStyleConstants.ScaledFont(UIStyleConstants.MessageFontSize);
+            thinkingText.fontStyle = FontStyle.Italic;
+            thinkingText.color = UIStyleConstants.TextMuted;
+            thinkingText.alignment = TextAnchor.MiddleLeft;
+            var thinkingFitter = thinkingObj.AddComponent<ContentSizeFitter>();
+            thinkingFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            _coroutineHost.StartCoroutine(ScrollToBottom());
+
+            _scrollPending = true;
+            string latestText = null;
+            GameObject bubbleRow = null;
+            Text messageText = null;
+
+            // Start a coroutine that throttles UI updates and scrolling
+            _coroutineHost.StartCoroutine(StreamingUiLoop(() => messageText, () => latestText, () => _scrollPending));
+
+            yield return LlmClient.SendChatRequest(
+                _conversationHistory,
+                _settings,
+                onToken: (accumulated) =>
+                {
+                    // On first token, replace "Thinking..." with a real bubble
+                    if (bubbleRow == null)
+                    {
+                        Object.Destroy(thinkingObj);
+                        var msg = new ChatMessage(MessageSender.AI, accumulated);
+                        bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                        messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                        if (messageText != null)
+                        {
+                            var textLayout = messageText.GetComponent<LayoutElement>();
+                            if (textLayout != null)
+                                textLayout.preferredWidth = UIStyleConstants.Scaled(
+                                    UIStyleConstants.WindowWidth * UIStyleConstants.BubbleMaxWidthRatio)
+                                    - UIStyleConstants.ScaledInt(UIStyleConstants.BubblePadding) * 2;
+                        }
+                    }
+                    latestText = accumulated;
+                },
+                onComplete: (text) =>
+                {
+                    _conversationHistory.Add(new ChatMessage(MessageSender.AI, text));
+                    latestText = text;
+                },
+                onError: (error) =>
+                {
+                    // On error with no tokens yet, replace "Thinking..." with error in bubble
+                    if (bubbleRow == null)
+                    {
+                        Object.Destroy(thinkingObj);
+                        var msg = new ChatMessage(MessageSender.AI, error);
+                        bubbleRow = ChatBubbleFactory.CreateBubble(msg, _contentTransform);
+                        messageText = ChatBubbleFactory.GetMessageText(bubbleRow);
+                    }
+                    latestText = error;
+                }
+            );
+
+            // Final UI update with complete text
+            _scrollPending = false;
+            // Clean up thinking label if still present (e.g. empty response)
+            if (thinkingObj != null)
+                Object.Destroy(thinkingObj);
+            if (messageText != null && latestText != null)
+            {
+                messageText.text = latestText;
+                LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
+            }
+
+            _isStreaming = false;
+            _sendButton.interactable = true;
+            _coroutineHost.StartCoroutine(ScrollToBottom());
+        }
+
+        /// <summary>
+        /// Throttled UI update loop during streaming: updates bubble text and scrolls at ~10fps.
+        /// </summary>
+        private IEnumerator StreamingUiLoop(System.Func<Text> getMessageText, System.Func<string> getLatest, System.Func<bool> isActive)
+        {
+            string displayed = null;
+            var wait = new WaitForSeconds(0.1f);
+            while (isActive())
+            {
+                var messageText = getMessageText();
+                string latest = getLatest();
+                if (latest != null && latest != displayed && messageText != null)
+                {
+                    messageText.text = latest;
+                    displayed = latest;
+                    LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
+                }
+                if (_scrollRect != null)
+                    _scrollRect.verticalNormalizedPosition = 0f;
+                yield return wait;
+            }
         }
 
         private void AddMessage(ChatMessage msg)
@@ -365,6 +527,57 @@ namespace Kerpilot
             var obj = new GameObject(name, typeof(RectTransform));
             obj.transform.SetParent(parent, false);
             return obj;
+        }
+
+        private static Sprite _gearSprite;
+        private static Sprite CreateGearSprite()
+        {
+            if (_gearSprite != null) return _gearSprite;
+
+            int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.ARGB32, false);
+            float center = size / 2f;
+            float outerR = size * 0.45f;
+            float innerR = size * 0.28f;
+            float holeR = size * 0.15f;
+            int teeth = 8;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center;
+                    float dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                    float angle = Mathf.Atan2(dy, dx);
+
+                    // Gear tooth profile: alternate between outer and inner radius
+                    float toothAngle = angle * teeth / (2f * Mathf.PI);
+                    float frac = toothAngle - Mathf.Floor(toothAngle);
+                    // Square-ish teeth with smooth edges
+                    float gearR = frac < 0.5f ? outerR : innerR;
+
+                    float alpha;
+                    if (dist < holeR - 0.5f)
+                        alpha = 0f; // center hole
+                    else if (dist < holeR + 0.5f)
+                        alpha = dist - (holeR - 0.5f); // anti-alias inner edge
+                    else if (dist < gearR - 0.5f)
+                        alpha = 1f;
+                    else if (dist < gearR + 0.5f)
+                        alpha = (gearR + 0.5f) - dist; // anti-alias outer edge
+                    else
+                        alpha = 0f;
+
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(alpha)));
+                }
+            }
+
+            tex.filterMode = FilterMode.Bilinear;
+            tex.Apply();
+            _gearSprite = Sprite.Create(tex, new Rect(0, 0, size, size),
+                new Vector2(0.5f, 0.5f), 100f);
+            return _gearSprite;
         }
     }
 

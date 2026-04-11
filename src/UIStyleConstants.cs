@@ -20,6 +20,7 @@ namespace Kerpilot
         public const int MessageFontSize = 14;
         public const int TimestampFontSize = 12;
         public const int InputFontSize = 14;
+        public const int SettingsLabelFontSize = 13;
 
         // Colors
         public static readonly Color BackgroundDark = HexColor("1E1E2E");

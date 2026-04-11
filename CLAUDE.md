@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-KSP (Kerbal Space Program 1.12.5) mod providing a modern chat dialog using Unity uGUI. Future goal: LLM integration for in-game AI assistant.
+KSP (Kerbal Space Program 1.12.5) mod providing an in-game AI chat assistant using Unity uGUI, connected to any OpenAI-compatible LLM API.
 
 ## Build
 
@@ -25,12 +25,20 @@ src/
   ChatMessage.cs             # Data model: MessageSender enum + ChatMessage class
   ChatBubbleFactory.cs       # Creates rounded-rect sprites and message bubble GameObjects
   UIStyleConstants.cs        # Static design tokens: colors, dimensions, font sizes
-GameData/Kerpilot/Plugins/   # Deployed DLL (symlinked into KSP GameData)
+  KerpilotSettings.cs        # Settings persistence via KSP ConfigNode (API key, endpoint, model)
+  SettingsPanel.cs           # uGUI settings form (same-window panel swap with chat view)
+  LlmClient.cs               # LLM API client using UnityWebRequest with SSE streaming
+  JsonHelper.cs              # Minimal JSON utilities (escape, extract, build request body)
+GameData/Kerpilot/
+  Plugins/                   # Deployed DLL (symlinked into KSP GameData)
+  PluginData/settings.cfg    # User settings (created at runtime, not committed)
 ```
 
 Key design decisions:
 - All UI is built programmatically via uGUI (no asset bundles, no OnGUI/IMGUI)
 - Rounded-rect sprites generated at runtime with 9-slice for bubble backgrounds
+- **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
+- **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
 - **UI rendering sharpness requirements:**
   - Font: use `UISkinManager.defaultSkin.font` (KSP native font), never `Resources.GetBuiltinResource<Font>("Arial.ttf")` (low-quality bitmap). TextMeshPro is unavailable (KSP 1.12.5 does not expose TMPro assemblies).
