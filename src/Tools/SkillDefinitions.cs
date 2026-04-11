@@ -57,15 +57,15 @@ namespace Kerpilot
                     "STAGING: Discard empty mass as early as possible. Each stage should burn out and separate before the next ignites. " +
                     "Lower stages: high thrust, acceptable Isp. Upper stages: high Isp, lower thrust is fine.\n\n" +
                     "THRUST-TO-WEIGHT RATIO (TWR):\n" +
-                    "- Launch (sea level): 1.2–1.7 TWR (with SRBs up to 2.0)\n" +
+                    "- TWR is evaluated per stage. The BOTTOM stage (highest stage number) is what matters at launch.\n" +
+                    "- Launch (sea level): 1.2–1.7 TWR on the bottom stage (with SRBs up to 2.0)\n" +
                     "- Upper atmosphere: ~1.0 TWR\n" +
                     "- Vacuum stages: 0.5+ TWR is sufficient\n" +
                     "- Never exceed 4G for crewed missions (crew safety)\n" +
                     "- Above 2.0 at launch: diminishing returns, wastes fuel fighting drag\n" +
-                    "- Use get_vessel_delta_v to check actual TWR per stage\n\n" +
+                    "- Use get_vessel_delta_v to check actual TWR per stage. The last stage in the list is the first to fire (bottom of rocket).\n\n" +
                     "TSIOLKOVSKY ROCKET EQUATION:\n" +
                     "Δv = g₀ × Isp × ln(m_wet / m_dry)\n" +
-                    "- g₀ = 9.81 m/s²\n" +
                     "- Isp = specific impulse (seconds) — engine efficiency\n" +
                     "- m_wet = total mass with fuel, m_dry = mass without fuel\n" +
                     "- Higher Isp or higher fuel fraction → more Δv\n\n" +

@@ -6,6 +6,17 @@ namespace Kerpilot
     public static class ChatBubbleFactory
     {
         private static Sprite _roundedSprite;
+        private static Sprite _gearSprite;
+
+        public static Sprite GearSprite
+        {
+            get
+            {
+                if (_gearSprite == null)
+                    _gearSprite = CreateGearSprite(64);
+                return _gearSprite;
+            }
+        }
 
         public static Sprite RoundedSprite
         {
@@ -58,6 +69,50 @@ namespace Kerpilot
                 0,
                 SpriteMeshType.FullRect,
                 new Vector4(radius + 1, radius + 1, radius + 1, radius + 1));
+        }
+
+        private static Sprite CreateGearSprite(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.ARGB32, false);
+            float center = size / 2f;
+            float outerR = size * 0.45f;
+            float innerR = size * 0.28f;
+            float holeR = size * 0.15f;
+            int teeth = 8;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center;
+                    float dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                    float angle = Mathf.Atan2(dy, dx);
+
+                    float toothAngle = angle * teeth / (2f * Mathf.PI);
+                    float frac = toothAngle - Mathf.Floor(toothAngle);
+                    float gearR = frac < 0.5f ? outerR : innerR;
+
+                    float alpha;
+                    if (dist < holeR - 0.5f)
+                        alpha = 0f;
+                    else if (dist < holeR + 0.5f)
+                        alpha = dist - (holeR - 0.5f);
+                    else if (dist < gearR - 0.5f)
+                        alpha = 1f;
+                    else if (dist < gearR + 0.5f)
+                        alpha = (gearR + 0.5f) - dist;
+                    else
+                        alpha = 0f;
+
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(alpha)));
+                }
+            }
+
+            tex.filterMode = FilterMode.Bilinear;
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size),
+                new Vector2(0.5f, 0.5f), 100f);
         }
 
         public static GameObject CreateBubble(ChatMessage msg, Transform parent)

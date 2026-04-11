@@ -21,18 +21,25 @@ KSP managed DLLs referenced from:
 Kerpilot.csproj              # net472, references KSP/Unity DLLs from game directory
 src/
   KerpilotAddon.cs           # Entry point ([KSPAddon]), toolbar button, Ctrl+K shortcut
-  ChatWindow.cs              # Builds full uGUI hierarchy programmatically (Canvas, ScrollRect, InputField)
   ChatMessage.cs             # Data model: MessageSender/MessageRole enums, ToolCall, ChatMessage
-  ChatBubbleFactory.cs       # Creates rounded-rect sprites and message bubble GameObjects
-  UIStyleConstants.cs        # Static design tokens: colors, dimensions, font sizes
   KerpilotSettings.cs        # Settings persistence via KSP ConfigNode (API key, endpoint, model)
-  SettingsPanel.cs           # uGUI settings form (same-window panel swap with chat view)
-  LlmClient.cs               # LLM API client using UnityWebRequest with SSE streaming + tool call parsing
-  JsonHelper.cs              # Minimal JSON utilities (escape, extract, build request body, tool call parsing)
-  ToolDefinitions.cs         # Tool JSON schemas, dispatch to GameDataTools
-  GameDataTools.cs           # KSP game data queries (vessel parts, part info, celestial bodies, contracts)
-  SkillDefinitions.cs        # Domain knowledge skills: orbital mechanics, rocket design, delta-v budget
-  SkillSelector.cs           # Keyword-based skill matching, dynamic system prompt composition
+  UI/                        # User interface
+    ChatWindow.cs            # Core window lifecycle, state, utilities (partial class)
+    ChatWindow.UI.cs         # UI construction: Canvas, header, message area, input bar (partial)
+    ChatWindow.Input.cs      # Input handling: text changes, resize, send (partial)
+    ChatWindow.Streaming.cs  # LLM streaming: tool-call loop, UI updates during streaming (partial)
+    ChatBubbleFactory.cs     # Sprite generation (rounded-rect, Kerbal avatar, gear) and message bubbles
+    UIStyleConstants.cs      # Static design tokens: colors, dimensions, font sizes
+    SettingsPanel.cs         # uGUI settings form (same-window panel swap with chat view)
+    DragHandler.cs           # MonoBehaviour for window dragging via header
+  Api/                       # LLM communication
+    LlmClient.cs             # API client using UnityWebRequest with SSE streaming + tool call parsing
+    JsonHelper.cs            # JSON utilities (escape, extract, build request body, tool call parsing)
+  Tools/                     # KSP game data and domain knowledge
+    ToolDefinitions.cs       # Tool JSON schemas, dispatch to GameDataTools
+    GameDataTools.cs         # KSP game data queries (vessel parts, celestial bodies, contracts, etc.)
+    SkillDefinitions.cs      # Domain knowledge skills: orbital mechanics, rocket design, delta-v budget
+    SkillSelector.cs         # Keyword-based skill matching, dynamic system prompt composition
 GameData/Kerpilot/
   Plugins/                   # Deployed DLL (symlinked into KSP GameData)
   PluginData/settings.cfg    # User settings (created at runtime, not committed)
@@ -46,7 +53,7 @@ Key design decisions:
 - All UI is built programmatically via uGUI (no asset bundles, no OnGUI/IMGUI)
 - Rounded-rect sprites generated at runtime with 9-slice for bubble backgrounds
 - **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
-- **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 8 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. All tools require flight scene. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
+- **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 9 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. All tools require flight scene. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
 - **Skills (domain knowledge injection)**: `SkillDefinitions` stores 3 knowledge skills (orbital mechanics, rocket design, delta-v budget) as C# string constants. `SkillSelector` uses keyword matching on the user's latest message to select up to 2 relevant skills and appends their content to the system prompt. This happens in `LlmClient.SendChatRequest` before building the request body. Skills are compiled into the DLL (no external files).
 - **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
@@ -63,7 +70,7 @@ dotnet test tests/Kerpilot.Tests.csproj -c Release
 ```
 
 NUnit test suite (`tests/ToolAvailabilityTests.cs`) verifies tool infrastructure without requiring a running KSP instance:
-- **Tool definitions**: All 8 tools present in JSON array, each with description and parameters schema, required parameters correct
+- **Tool definitions**: All 9 tools present in JSON array, each with description and parameters schema, required parameters correct
 - **Status labels**: Every tool name maps to a non-empty label ending in "..."
 - **ExecuteTool dispatch**: Unknown tools return error JSON with escaped names; missing required params return errors (not exceptions)
 - **JsonHelper parsing**: `ExtractJsonStringValue` for tool arguments, SSE `tool_calls` detection/extraction (index, id, function name, arguments fragments)

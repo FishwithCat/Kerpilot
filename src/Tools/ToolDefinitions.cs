@@ -44,6 +44,11 @@ namespace Kerpilot
                 "\"name\":\"get_atmosphere_data\"," +
                 "\"description\":\"Get detailed atmosphere data for a celestial body: pressure, temperature, and density at multiple altitudes. Useful for planning ascent profiles, aerobraking, and estimating drag losses. Defaults to current body if in flight.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Eve, Duna, Laythe). Optional — defaults to current body if in flight.\"}},\"required\":[]}" +
+            "}}," +
+            "{\"type\":\"function\",\"function\":{" +
+                "\"name\":\"list_vessels\"," +
+                "\"description\":\"List all vessels in the current game: name, type (Ship, Probe, Debris, etc.), orbital situation, parent body, apoapsis/periapsis, and mass. Use when the player asks about other rockets, ships, debris, or any non-active vessels.\"," +
+                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}";
 
         public static string GetToolsJsonArray()
@@ -63,6 +68,7 @@ namespace Kerpilot
                 case "get_vessel_orbit": return "Reading orbit data...";
                 case "get_vessel_status": return "Reading flight status...";
                 case "get_atmosphere_data": return "Querying atmosphere data...";
+                case "list_vessels": return "Listing vessels...";
                 default: return "Looking up game data...";
             }
         }
@@ -99,6 +105,9 @@ namespace Kerpilot
                     case "get_atmosphere_data":
                         string atmBody = JsonHelper.ExtractJsonStringValue(argumentsJson, "body_name");
                         return GameDataTools.GetAtmosphereData(atmBody);
+
+                    case "list_vessels":
+                        return GameDataTools.ListVessels();
 
                     default:
                         return "{\"error\":\"Unknown tool: " + JsonHelper.EscapeJsonString(name) + "\"}";

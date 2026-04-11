@@ -71,6 +71,9 @@ namespace Kerpilot
                 yield return null;
             }
 
+            // Flush any incomplete SSE line remaining in the buffer
+            streamHandler.FlushBuffer();
+
             // Process any remaining tokens
             string remaining = streamHandler.ConsumeTokens();
             if (!string.IsNullOrEmpty(remaining))
@@ -218,6 +221,19 @@ namespace Kerpilot
             string argFragment = JsonHelper.ExtractToolCallArguments(payload);
             if (argFragment != null)
                 tc.Arguments.Append(argFragment);
+        }
+
+        /// <summary>
+        /// Flush any remaining data in the buffer that didn't end with a newline.
+        /// Must be called after the request completes to avoid losing the last SSE line.
+        /// </summary>
+        public void FlushBuffer()
+        {
+            if (_buffer.Length > 0)
+            {
+                _buffer.Append('\n');
+                ProcessBuffer();
+            }
         }
 
         protected override float GetProgress() => 0f;

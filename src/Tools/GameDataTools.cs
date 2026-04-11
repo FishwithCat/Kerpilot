@@ -623,5 +623,53 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        public static string ListVessels()
+        {
+            var vessels = FlightGlobals.Vessels;
+            if (vessels == null || vessels.Count == 0)
+                return "{\"error\":\"No vessels found. You must be in flight scene.\"}";
+
+            var sb = new StringBuilder();
+            sb.Append("{\"vessel_count\":");
+            sb.Append(vessels.Count);
+            sb.Append(",\"active_vessel\":\"");
+            var active = FlightGlobals.ActiveVessel;
+            sb.Append(active != null ? JsonHelper.EscapeJsonString(active.vesselName) : "");
+            sb.Append("\",\"vessels\":[");
+
+            bool first = true;
+            foreach (var v in vessels)
+            {
+                if (!first) sb.Append(",");
+                first = false;
+                sb.Append("{\"name\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(v.vesselName));
+                sb.Append("\",\"type\":\"");
+                sb.Append(v.vesselType.ToString());
+                sb.Append("\",\"situation\":\"");
+                sb.Append(v.situation.ToString());
+                sb.Append("\",\"body\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(v.mainBody.bodyName));
+                sb.Append("\"");
+
+                if (v.orbit != null)
+                {
+                    sb.Append(",\"apoapsis_m\":");
+                    sb.Append(v.orbit.ApA.ToString("F0"));
+                    sb.Append(",\"periapsis_m\":");
+                    sb.Append(v.orbit.PeA.ToString("F0"));
+                }
+
+                sb.Append(",\"mass_tons\":");
+                sb.Append(v.totalMass.ToString("F2"));
+                sb.Append(",\"is_active\":");
+                sb.Append(v == active ? "true" : "false");
+                sb.Append("}");
+            }
+
+            sb.Append("]}");
+            return sb.ToString();
+        }
+
     }
 }

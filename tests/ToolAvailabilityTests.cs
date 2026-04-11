@@ -16,7 +16,8 @@ namespace Kerpilot.Tests
             "get_vessel_delta_v",
             "get_vessel_orbit",
             "get_vessel_status",
-            "get_atmosphere_data"
+            "get_atmosphere_data",
+            "list_vessels"
         };
 
         private string toolsJson;
@@ -64,7 +65,7 @@ namespace Kerpilot.Tests
                 count++;
                 pos = idx + 1;
             }
-            Assert.That(count, Is.EqualTo(8), "Expected exactly 8 tool definitions");
+            Assert.That(count, Is.EqualTo(9), "Expected exactly 9 tool definitions");
         }
 
         [Test]
