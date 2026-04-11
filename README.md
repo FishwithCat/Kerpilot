@@ -15,6 +15,10 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
   - Celestial body parameters (gravity, atmosphere, SOI, orbital data)
   - Atmosphere profiles (pressure, temperature, density at multiple altitudes)
   - Active contracts (objectives, rewards, completion state)
+- **Context-aware skills** — automatically injects relevant domain knowledge into the AI based on your question:
+  - Orbital Mechanics: Hohmann transfers, gravity turns, inclination changes, rendezvous, aerobraking
+  - Rocket Design: staging, TWR guidelines, Tsiolkovsky equation, aerodynamic stability, engine selection
+  - Delta-v Budget: complete KSP delta-v map data, mission budgets, safety margins
 - Settings panel to configure API endpoint, API key, and model
 - Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
@@ -72,7 +76,7 @@ ln -s "$(pwd)/GameData/Kerpilot" "/path/to/Kerbal Space Program/GameData/Kerpilo
 
 ## Tests
 
-The project includes a test suite that verifies tool availability, dispatch routing, JSON parsing, and request body construction — all without requiring a running KSP instance.
+The project includes a test suite that verifies tool availability, dispatch routing, JSON parsing, request body construction, and skill selection — all without requiring a running KSP instance.
 
 Run the tests:
 

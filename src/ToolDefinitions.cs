@@ -12,7 +12,7 @@ namespace Kerpilot
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"get_part_info\"," +
-                "\"description\":\"Get detailed info for a specific part type: description, mass, cost, category, manufacturer, and resource capacities. Use when the player asks about a particular part.\"," +
+                "\"description\":\"Get detailed info for a specific part type: description, mass, cost, category, manufacturer, resource capacities, and engine performance (thrust, Isp vacuum/sea-level, propellants) if the part is an engine. Use when the player asks about a particular part or engine stats.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{\"part_name\":{\"type\":\"string\",\"description\":\"Name of the part (e.g. FL-T400 Fuel Tank, LV-T30 Reliant Engine)\"}},\"required\":[\"part_name\"]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +

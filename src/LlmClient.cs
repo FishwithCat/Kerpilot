@@ -9,7 +9,7 @@ namespace Kerpilot
 {
     public static class LlmClient
     {
-        private const string SystemPrompt =
+        public const string BaseSystemPrompt =
             "You are Kerpilot, an AI assistant for Kerbal Space Program. " +
             "Help the player with orbital mechanics, rocket design, mission planning, and gameplay tips. " +
             "Keep responses concise and practical. " +
@@ -31,7 +31,21 @@ namespace Kerpilot
 
             string url = settings.BaseUrl.TrimEnd('/') + "/chat/completions";
             string toolsJson = ToolDefinitions.GetToolsJsonArray();
-            string body = JsonHelper.BuildChatRequestBody(history, settings.ModelName, SystemPrompt, toolsJson);
+
+            // Select relevant skills based on the latest user message
+            string latestUserMessage = "";
+            for (int i = history.Count - 1; i >= 0; i--)
+            {
+                if (history[i].Sender == MessageSender.User)
+                {
+                    latestUserMessage = history[i].Text;
+                    break;
+                }
+            }
+            var selectedSkills = SkillSelector.SelectSkills(latestUserMessage);
+            string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt, selectedSkills);
+
+            string body = JsonHelper.BuildChatRequestBody(history, settings.ModelName, systemPrompt, toolsJson);
 
             var request = new UnityWebRequest(url, "POST");
             byte[] bodyBytes = Encoding.UTF8.GetBytes(body);

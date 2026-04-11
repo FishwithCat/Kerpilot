@@ -176,6 +176,43 @@ namespace Kerpilot
                 sb.Append("]");
             }
 
+            // Engine performance data from ModuleEngines
+            if (found.partPrefab != null)
+            {
+                var engine = found.partPrefab.GetComponent<ModuleEngines>();
+                if (engine != null)
+                {
+                    sb.Append(",\"engine\":{");
+                    sb.Append("\"max_thrust_kN\":");
+                    sb.Append(engine.maxThrust.ToString("F1"));
+                    sb.Append(",\"min_thrust_kN\":");
+                    sb.Append(engine.minThrust.ToString("F1"));
+                    sb.Append(",\"isp_vacuum\":");
+                    sb.Append(engine.atmosphereCurve.Evaluate(0f).ToString("F1"));
+                    sb.Append(",\"isp_sea_level\":");
+                    sb.Append(engine.atmosphereCurve.Evaluate(1f).ToString("F1"));
+                    sb.Append(",\"throttleable\":");
+                    sb.Append(engine.throttleLocked ? "false" : "true");
+
+                    // Propellants
+                    sb.Append(",\"propellants\":[");
+                    bool firstProp = true;
+                    foreach (var prop in engine.propellants)
+                    {
+                        if (!firstProp) sb.Append(",");
+                        firstProp = false;
+                        sb.Append("{\"name\":\"");
+                        sb.Append(JsonHelper.EscapeJsonString(prop.name));
+                        sb.Append("\",\"ratio\":");
+                        sb.Append(prop.ratio.ToString("F2"));
+                        sb.Append("}");
+                    }
+                    sb.Append("]");
+
+                    sb.Append("}");
+                }
+            }
+
             sb.Append("}");
             return sb.ToString();
         }
