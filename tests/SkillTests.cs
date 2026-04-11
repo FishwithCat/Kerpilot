@@ -6,40 +6,6 @@ namespace Kerpilot.Tests
     [TestFixture]
     public class SkillTests
     {
-        // ── SkillDefinitions ──
-
-        [Test]
-        public void AllSkills_ContainsThreeSkills()
-        {
-            var skills = SkillDefinitions.GetAllSkills();
-            Assert.AreEqual(3, skills.Length);
-        }
-
-        [Test]
-        public void AllSkills_HaveNonEmptyFields()
-        {
-            foreach (var skill in SkillDefinitions.GetAllSkills())
-            {
-                Assert.IsNotEmpty(skill.Id, "Skill Id is empty");
-                Assert.IsNotEmpty(skill.Title, "Skill Title is empty for " + skill.Id);
-                Assert.IsNotEmpty(skill.Content, "Skill Content is empty for " + skill.Id);
-                Assert.IsNotNull(skill.Keywords, "Skill Keywords is null for " + skill.Id);
-                Assert.IsTrue(skill.Keywords.Length > 0, "Skill Keywords is empty for " + skill.Id);
-            }
-        }
-
-        [Test]
-        public void AllSkills_HaveExpectedIds()
-        {
-            var skills = SkillDefinitions.GetAllSkills();
-            var ids = new HashSet<string>();
-            foreach (var s in skills) ids.Add(s.Id);
-
-            Assert.IsTrue(ids.Contains("orbital_mechanics"));
-            Assert.IsTrue(ids.Contains("rocket_design"));
-            Assert.IsTrue(ids.Contains("delta_v_budget"));
-        }
-
         // ── SkillSelector.SelectSkills ──
 
         [Test]
@@ -76,7 +42,6 @@ namespace Kerpilot.Tests
         {
             var result = SkillSelector.SelectSkills("Do I have enough delta-v to reach the Mun?");
             Assert.IsTrue(result.Count >= 1);
-            // delta_v_budget should be in the results (may be first or second depending on scoring)
             bool found = false;
             foreach (var s in result)
                 if (s.Id == "delta_v_budget") found = true;

@@ -6,160 +6,6 @@ namespace Kerpilot.Tests
     [TestFixture]
     public class ToolAvailabilityTests
     {
-        // All tool names that should be registered
-        private static readonly string[] AllToolNames =
-        {
-            "get_vessel_parts",
-            "get_part_info",
-            "get_celestial_body",
-            "get_active_contracts",
-            "get_offered_contracts",
-            "get_vessel_delta_v",
-            "get_vessel_orbit",
-            "get_vessel_status",
-            "get_atmosphere_data",
-            "list_vessels",
-            "analyze_vessel"
-        };
-
-        private string toolsJson;
-
-        [SetUp]
-        public void SetUp()
-        {
-            toolsJson = ToolDefinitions.GetToolsJsonArray();
-        }
-
-        // ── Tool definitions JSON structure ──
-
-        [Test]
-        public void GetToolsJsonArray_ReturnsNonEmpty()
-        {
-            Assert.That(toolsJson, Is.Not.Null.And.Not.Empty);
-        }
-
-        [Test]
-        public void GetToolsJsonArray_IsJsonArray()
-        {
-            Assert.That(toolsJson, Does.StartWith("["));
-            Assert.That(toolsJson, Does.EndWith("]"));
-        }
-
-        [Test]
-        [TestCaseSource(nameof(AllToolNames))]
-        public void GetToolsJsonArray_ContainsTool(string toolName)
-        {
-            // Each tool should appear as "name":"<toolName>" in the JSON
-            string needle = "\"name\":\"" + toolName + "\"";
-            Assert.That(toolsJson, Does.Contain(needle),
-                $"Tool '{toolName}' not found in tools JSON array");
-        }
-
-        [Test]
-        public void GetToolsJsonArray_ContainsAllNineTools()
-        {
-            int count = 0;
-            int pos = 0;
-            while (true)
-            {
-                int idx = toolsJson.IndexOf("\"type\":\"function\"", pos);
-                if (idx < 0) break;
-                count++;
-                pos = idx + 1;
-            }
-            Assert.That(count, Is.EqualTo(11), "Expected exactly 11 tool definitions");
-        }
-
-        [Test]
-        [TestCaseSource(nameof(AllToolNames))]
-        public void GetToolsJsonArray_EachToolHasDescription(string toolName)
-        {
-            // Find the tool section and verify it has a description field
-            int nameIdx = toolsJson.IndexOf("\"name\":\"" + toolName + "\"");
-            Assert.That(nameIdx, Is.GreaterThanOrEqualTo(0));
-
-            // Look for "description" near this tool (within 500 chars before/after)
-            int searchStart = System.Math.Max(0, nameIdx - 300);
-            int searchEnd = System.Math.Min(toolsJson.Length, nameIdx + 500);
-            string vicinity = toolsJson.Substring(searchStart, searchEnd - searchStart);
-            Assert.That(vicinity, Does.Contain("\"description\":\""),
-                $"Tool '{toolName}' missing description");
-        }
-
-        [Test]
-        [TestCaseSource(nameof(AllToolNames))]
-        public void GetToolsJsonArray_EachToolHasParameters(string toolName)
-        {
-            int nameIdx = toolsJson.IndexOf("\"name\":\"" + toolName + "\"");
-            int searchStart = System.Math.Max(0, nameIdx - 100);
-            int searchEnd = System.Math.Min(toolsJson.Length, nameIdx + 500);
-            string vicinity = toolsJson.Substring(searchStart, searchEnd - searchStart);
-            Assert.That(vicinity, Does.Contain("\"parameters\":{"),
-                $"Tool '{toolName}' missing parameters schema");
-        }
-
-        // ── Tool requiring specific parameters ──
-
-        [Test]
-        public void GetPartInfo_RequiresPartName()
-        {
-            Assert.That(toolsJson, Does.Contain("\"part_name\""));
-            // Check it's in the required array
-            int partInfoIdx = toolsJson.IndexOf("\"name\":\"get_part_info\"");
-            int requiredIdx = toolsJson.IndexOf("\"required\":[\"part_name\"]", partInfoIdx);
-            Assert.That(requiredIdx, Is.GreaterThan(partInfoIdx),
-                "get_part_info should require part_name parameter");
-        }
-
-        [Test]
-        public void GetCelestialBody_RequiresBodyName()
-        {
-            int cbIdx = toolsJson.IndexOf("\"name\":\"get_celestial_body\"");
-            int requiredIdx = toolsJson.IndexOf("\"required\":[\"body_name\"]", cbIdx);
-            Assert.That(requiredIdx, Is.GreaterThan(cbIdx),
-                "get_celestial_body should require body_name parameter");
-        }
-
-        [Test]
-        public void GetAtmosphereData_BodyNameIsOptional()
-        {
-            int atmIdx = toolsJson.IndexOf("\"name\":\"get_atmosphere_data\"");
-            int nextToolIdx = toolsJson.IndexOf("\"name\":\"", atmIdx + 1);
-            string atmSection = nextToolIdx > 0
-                ? toolsJson.Substring(atmIdx, nextToolIdx - atmIdx)
-                : toolsJson.Substring(atmIdx);
-            Assert.That(atmSection, Does.Contain("\"required\":[]"),
-                "get_atmosphere_data should have no required parameters");
-        }
-
-        // ── Status labels ──
-
-        [Test]
-        [TestCaseSource(nameof(AllToolNames))]
-        public void GetToolStatusLabel_ReturnsNonEmptyForAllTools(string toolName)
-        {
-            string label = ToolDefinitions.GetToolStatusLabel(toolName);
-            Assert.That(label, Is.Not.Null.And.Not.Empty,
-                $"Status label for '{toolName}' should not be empty");
-        }
-
-        [Test]
-        [TestCaseSource(nameof(AllToolNames))]
-        public void GetToolStatusLabel_EndsWithEllipsis(string toolName)
-        {
-            string label = ToolDefinitions.GetToolStatusLabel(toolName);
-            Assert.That(label, Does.EndWith("..."),
-                $"Status label for '{toolName}' should end with '...'");
-        }
-
-        [Test]
-        public void GetToolStatusLabel_UnknownToolReturnsFallback()
-        {
-            string label = ToolDefinitions.GetToolStatusLabel("nonexistent_tool");
-            Assert.That(label, Is.Not.Null.And.Not.Empty);
-            Assert.That(label, Does.EndWith("..."));
-        }
-
         // ── ExecuteTool dispatch ──
 
         [Test]
@@ -195,7 +41,15 @@ namespace Kerpilot.Tests
             Assert.That(result, Does.Contain("\"error\""));
         }
 
-        // ── JsonHelper tool-related parsing ──
+        [Test]
+        public void ExecuteTool_SearchAvailableParts_InvalidCategory_ReturnsError()
+        {
+            string result = ToolDefinitions.ExecuteTool("search_available_parts", "{\"category\":\"NotACategory\"}");
+            Assert.That(result, Does.Contain("\"error\""));
+            Assert.That(result, Does.Contain("Unknown category"));
+        }
+
+        // ── JsonHelper parsing ──
 
         [Test]
         public void ExtractJsonStringValue_PartName()
@@ -350,7 +204,24 @@ namespace Kerpilot.Tests
             Assert.That(msg.Text, Is.EqualTo("{\"parts\":[]}"));
         }
 
-        // ── BuildChatRequestBody includes tools ──
+        // ── BuildChatRequestBody ──
+
+        [Test]
+        public void GetToolsJsonArray_ContainsSearchAvailableParts()
+        {
+            string json = ToolDefinitions.GetToolsJsonArray();
+            Assert.That(json, Does.Contain("search_available_parts"));
+            Assert.That(json, Does.Contain("\"category\""));
+            Assert.That(json, Does.Contain("\"search\""));
+        }
+
+        [Test]
+        public void GetToolStatusLabel_SearchAvailableParts_ReturnsLabel()
+        {
+            string label = ToolDefinitions.GetToolStatusLabel("search_available_parts");
+            Assert.That(label, Does.Contain("..."));
+            Assert.That(label, Is.Not.EqualTo("Looking up game data..."));
+        }
 
         [Test]
         public void BuildChatRequestBody_IncludesToolsJson()

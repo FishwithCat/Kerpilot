@@ -737,6 +737,137 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        private static readonly HashSet<string> ValidPartCategories = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            "Pods", "FuelTank", "Engine", "Command", "Structural", "Aero",
+            "Utility", "Science", "Coupling", "Electrical", "Ground", "Thermal",
+            "Cargo", "Robotics", "Communication", "none"
+        };
+
+        public static bool IsValidPartCategory(string category)
+        {
+            return ValidPartCategories.Contains(category);
+        }
+
+        public static string GetValidCategoriesList()
+        {
+            return string.Join(", ", new List<string>(ValidPartCategories).ToArray());
+        }
+
+        public static string SearchAvailableParts(string category, string search)
+        {
+            var allParts = PartLoader.LoadedPartsList;
+            if (allParts == null || allParts.Count == 0)
+                return "{\"error\":\"Part database not loaded.\"}";
+
+            PartCategories? catFilter = null;
+            if (!string.IsNullOrEmpty(category))
+                catFilter = (PartCategories)Enum.Parse(typeof(PartCategories), category, true);
+
+            bool isSandbox = HighLogic.CurrentGame != null
+                && HighLogic.CurrentGame.Mode == Game.Modes.SANDBOX;
+            var rnd = ResearchAndDevelopment.Instance;
+            bool hasTechTree = !isSandbox && rnd != null;
+
+            var sb = new StringBuilder();
+            sb.Append("{\"game_mode\":\"");
+            sb.Append(HighLogic.CurrentGame != null ? HighLogic.CurrentGame.Mode.ToString() : "Unknown");
+            sb.Append("\"");
+            if (hasTechTree)
+            {
+                sb.Append(",\"tech_filter\":true,\"science_points\":");
+                sb.Append(rnd.Science.ToString("F1"));
+            }
+            else
+            {
+                sb.Append(",\"tech_filter\":false");
+            }
+
+            sb.Append(",\"parts\":[");
+            bool first = true;
+            int count = 0;
+            const int MaxResults = 50;
+
+            foreach (var ap in allParts)
+            {
+                if (count >= MaxResults) break;
+
+                if (ap.category == PartCategories.none && catFilter == null) continue;
+                if (string.IsNullOrEmpty(ap.title)) continue;
+
+                if (hasTechTree && !ResearchAndDevelopment.PartTechAvailable(ap))
+                    continue;
+
+                if (catFilter.HasValue && ap.category != catFilter.Value)
+                    continue;
+
+                if (search != null)
+                {
+                    bool match = ap.title.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0
+                        || (ap.description != null && ap.description.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0)
+                        || (ap.manufacturer != null && ap.manufacturer.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!match) continue;
+                }
+
+                if (!first) sb.Append(",");
+                first = false;
+                count++;
+
+                sb.Append("{\"name\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(ap.title));
+                sb.Append("\",\"category\":\"");
+                sb.Append(ap.category.ToString());
+                sb.Append("\",\"cost\":");
+                sb.Append(ap.cost.ToString("F0"));
+                sb.Append(",\"mass_tons\":");
+                sb.Append(ap.partPrefab != null ? ap.partPrefab.mass.ToString("F3") : "0");
+
+                if (!string.IsNullOrEmpty(ap.TechRequired))
+                {
+                    sb.Append(",\"tech_required\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(ap.TechRequired));
+                    sb.Append("\"");
+                }
+
+                if (hasTechTree)
+                {
+                    bool purchased = ResearchAndDevelopment.PartModelPurchased(ap);
+                    sb.Append(",\"purchased\":");
+                    sb.Append(purchased ? "true" : "false");
+                    if (!purchased)
+                    {
+                        sb.Append(",\"entry_cost\":");
+                        sb.Append(ap.entryCost);
+                    }
+                }
+
+                if (ap.partPrefab != null)
+                {
+                    var engine = ap.partPrefab.GetComponent<ModuleEngines>();
+                    if (engine != null)
+                    {
+                        sb.Append(",\"engine\":{\"max_thrust_kN\":");
+                        sb.Append(engine.maxThrust.ToString("F1"));
+                        sb.Append(",\"isp_vacuum\":");
+                        sb.Append(engine.atmosphereCurve.Evaluate(0f).ToString("F1"));
+                        sb.Append(",\"isp_sea_level\":");
+                        sb.Append(engine.atmosphereCurve.Evaluate(1f).ToString("F1"));
+                        sb.Append("}");
+                    }
+                }
+
+                sb.Append("}");
+            }
+
+            sb.Append("],\"result_count\":");
+            sb.Append(count);
+            if (count >= MaxResults)
+                sb.Append(",\"truncated\":true,\"hint\":\"Use category or search filters to narrow results.\"");
+            sb.Append("}");
+            return sb.ToString();
+        }
+
         // 5% tolerance when comparing vessel Δv against requirements
         private const double DvMargin = 0.95;
 

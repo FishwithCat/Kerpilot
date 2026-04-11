@@ -7,7 +7,7 @@ namespace Kerpilot
     public class KerpilotAddon : MonoBehaviour
     {
         private ChatWindow _chatWindow;
-        private ApplicationLauncherButton _toolbarButton;
+        private static ApplicationLauncherButton _toolbarButton;
         private Texture2D _toolbarIcon;
 
         private void Awake()

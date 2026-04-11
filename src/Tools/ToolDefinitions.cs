@@ -59,6 +59,14 @@ namespace Kerpilot
                 "\"name\":\"analyze_vessel\"," +
                 "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR (ASL for lower stages, vacuum for upper stages that fire above atmosphere). Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
+            "}}," +
+            "{\"type\":\"function\",\"function\":{" +
+                "\"name\":\"search_available_parts\"," +
+                "\"description\":\"Search for parts available to the player, filtered by tech tree progress in Career/Science mode. Returns part name, category, cost, mass, tech node, and engine stats if applicable. Use when the player asks what parts they can use, wants to find an engine or fuel tank, or is building a rocket and needs part recommendations.\"," +
+                "\"parameters\":{\"type\":\"object\",\"properties\":{" +
+                    "\"category\":{\"type\":\"string\",\"description\":\"Filter by category: Pods, FuelTank, Engine, Command, Structural, Aero, Utility, Science, Coupling, Electrical, Ground, Thermal, Cargo, Robotics, Communication, none. Optional.\"}," +
+                    "\"search\":{\"type\":\"string\",\"description\":\"Text search in part name, description, and manufacturer. Optional.\"}" +
+                "},\"required\":[]}" +
             "}}";
 
         public static string GetToolsJsonArray()
@@ -81,6 +89,7 @@ namespace Kerpilot
                 case "get_atmosphere_data": return "Querying atmosphere data...";
                 case "list_vessels": return "Listing vessels...";
                 case "analyze_vessel": return "Analyzing vessel capabilities...";
+                case "search_available_parts": return "Searching available parts...";
                 default: return "Looking up game data...";
             }
         }
@@ -126,6 +135,14 @@ namespace Kerpilot
 
                     case "analyze_vessel":
                         return GameDataTools.AnalyzeVessel();
+
+                    case "search_available_parts":
+                        string partCategory = JsonHelper.ExtractJsonStringValue(argumentsJson, "category");
+                        if (!string.IsNullOrEmpty(partCategory) && !GameDataTools.IsValidPartCategory(partCategory))
+                            return "{\"error\":\"Unknown category '" + JsonHelper.EscapeJsonString(partCategory) +
+                                "'. Valid: " + GameDataTools.GetValidCategoriesList() + "\"}";
+                        string partSearch = JsonHelper.ExtractJsonStringValue(argumentsJson, "search");
+                        return GameDataTools.SearchAvailableParts(partCategory, partSearch);
 
                     default:
                         return "{\"error\":\"Unknown tool: " + JsonHelper.EscapeJsonString(name) + "\"}";

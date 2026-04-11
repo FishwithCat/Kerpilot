@@ -14,7 +14,8 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
   - Part details (description, cost, mass, category, resource capacities)
   - Celestial body parameters (gravity, atmosphere, SOI, orbital data)
   - Atmosphere profiles (pressure, temperature, density at multiple altitudes)
-  - Active contracts (objectives, rewards, completion state)
+  - Active and offered contracts (objectives, rewards, completion state)
+  - Available parts search (filtered by tech tree progress in Career/Science mode)
 - **Context-aware skills** — automatically injects relevant domain knowledge into the AI based on your question:
   - Orbital Mechanics: Hohmann transfers, gravity turns, inclination changes, rendezvous, aerobraking
   - Rocket Design: staging, TWR guidelines, Tsiolkovsky equation, aerodynamic stability, engine selection
