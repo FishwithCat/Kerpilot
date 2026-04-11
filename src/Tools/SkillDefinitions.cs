@@ -63,7 +63,7 @@ namespace Kerpilot
                     "- Vacuum stages: 0.5+ TWR is sufficient\n" +
                     "- Never exceed 4G for crewed missions (crew safety)\n" +
                     "- Above 2.0 at launch: diminishing returns, wastes fuel fighting drag\n" +
-                    "- Use get_vessel_delta_v to check actual TWR per stage. The last stage in the list is the first to fire (bottom of rocket).\n\n" +
+                    "- Use get_vessel_delta_v to check actual TWR per stage. The stage with the HIGHEST stage number fires first (bottom of rocket). Use analyze_vessel for an automated assessment.\n\n" +
                     "TSIOLKOVSKY ROCKET EQUATION:\n" +
                     "Δv = g₀ × Isp × ln(m_wet / m_dry)\n" +
                     "- Isp = specific impulse (seconds) — engine efficiency\n" +

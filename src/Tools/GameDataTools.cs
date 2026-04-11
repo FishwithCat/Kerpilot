@@ -671,5 +671,246 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        // 5% tolerance when comparing vessel Δv against requirements
+        private const double DvMargin = 0.95;
+
+        public static string AnalyzeVessel()
+        {
+            var vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null)
+                return "{\"error\":\"No active vessel.\"}";
+
+            var dvInfo = vessel.VesselDeltaV;
+            if (dvInfo == null)
+                return "{\"error\":\"Delta-v data not available. The vessel may not be fully loaded.\"}";
+
+            var body = vessel.mainBody;
+            var stages = dvInfo.OperatingStageInfo;
+
+            double mu = body.gravParameter;
+            double bodyRadius = body.Radius;
+            bool hasAtmo = body.atmosphere;
+            double atmoDepth = hasAtmo ? body.atmosphereDepth : 0;
+
+            double targetOrbitAlt = hasAtmo
+                ? atmoDepth + 10000
+                : Math.Max(10000, bodyRadius * 0.02);
+            double orbitRadius = bodyRadius + targetOrbitAlt;
+            double vOrbital = Math.Sqrt(mu / orbitRadius);
+
+            double dvToOrbit;
+            double gMs2 = body.GeeASL * 9.81;
+            if (hasAtmo && gMs2 > 0)
+            {
+                double tFreefall = Math.Sqrt(2.0 * targetOrbitAlt / gMs2);
+                double gravityLoss = gMs2 * tFreefall * 0.8;
+                double dragLoss = vOrbital * 0.05;
+                dvToOrbit = vOrbital + gravityLoss + dragLoss;
+            }
+            else
+            {
+                dvToOrbit = vOrbital * 1.05;
+            }
+
+            double dvOrbitToEscape = vOrbital * (Math.Sqrt(2.0) - 1.0);
+            double dvSurfaceToEscape = dvToOrbit + dvOrbitToEscape;
+
+            double vesselDvAsl = dvInfo.TotalDeltaVASL;
+            double vesselDvVac = dvInfo.TotalDeltaVVac;
+            double vesselDvActual = dvInfo.TotalDeltaVActual;
+
+            var issues = new List<string>();
+            bool isOnSurface = vessel.situation == Vessel.Situations.LANDED
+                            || vessel.situation == Vessel.Situations.PRELAUNCH
+                            || vessel.situation == Vessel.Situations.SPLASHED;
+
+            var sb = new StringBuilder();
+            sb.Append("{\"body\":\"");
+            sb.Append(JsonHelper.EscapeJsonString(body.bodyName));
+            sb.Append("\",\"situation\":\"");
+            sb.Append(vessel.situation.ToString());
+            sb.Append("\",\"dv_needed_orbit\":");
+            sb.Append(F0(dvToOrbit));
+            sb.Append(",\"dv_needed_escape\":");
+            sb.Append(F0(dvSurfaceToEscape));
+            sb.Append(",\"vessel_dv_asl\":");
+            sb.Append(F0(vesselDvAsl));
+            sb.Append(",\"vessel_dv_vac\":");
+            sb.Append(F0(vesselDvVac));
+
+            if (isOnSurface)
+            {
+                // Find launch stage: highest stage number with actual thrust
+                // (highest stage number = first to fire = bottom of rocket)
+                double launchTwr = 0;
+                int launchStageNum = -1;
+                if (stages != null)
+                {
+                    foreach (var s in stages)
+                    {
+                        if ((s.thrustASL > 0 || s.thrustVac > 0) && s.stage > launchStageNum)
+                        {
+                            launchTwr = s.TWRASL;
+                            launchStageNum = s.stage;
+                        }
+                    }
+                }
+
+                bool canLiftOff = launchTwr > 1.0;
+                bool canOrbit = vesselDvAsl >= dvToOrbit * DvMargin;
+                double effectiveDv = vesselDvActual > 0 ? vesselDvActual : vesselDvAsl;
+                bool canEscape = effectiveDv >= dvSurfaceToEscape * DvMargin;
+
+                sb.Append(",\"launch_twr\":");
+                sb.Append(F2(launchTwr));
+                sb.Append(",\"can_lift_off\":");
+                sb.Append(canLiftOff ? "true" : "false");
+                sb.Append(",\"can_orbit\":");
+                sb.Append(canOrbit ? "true" : "false");
+                sb.Append(",\"can_escape\":");
+                sb.Append(canEscape ? "true" : "false");
+
+                if (launchTwr <= 0)
+                    issues.Add("No powered stage found - check engine staging");
+                else if (!canLiftOff)
+                    issues.Add("Launch TWR " + F2(launchTwr) + " on stage " + launchStageNum + " (need >1.0)");
+                else if (launchTwr < 1.2)
+                    issues.Add("Launch TWR " + F2(launchTwr) + " is low, recommend 1.2-1.7");
+                else if (launchTwr > 2.5)
+                    issues.Add("Launch TWR " + F2(launchTwr) + " is very high, wastes fuel on drag");
+
+                if (!canOrbit)
+                    issues.Add("ASL dv " + F0(vesselDvAsl) + " < " + F0(dvToOrbit) + " needed for orbit");
+                else if (!canEscape)
+                    issues.Add("Can orbit but dv " + F0(effectiveDv) + " < " + F0(dvSurfaceToEscape) + " needed for escape");
+            }
+            else
+            {
+                double currentSpeed = vessel.obt_velocity.magnitude;
+                double currentRadius = bodyRadius + vessel.altitude;
+                double vEscapeHere = Math.Sqrt(2.0 * mu / currentRadius);
+                double dvToEscapeHere = Math.Max(0, vEscapeHere - currentSpeed);
+                bool canEscape = vesselDvVac >= dvToEscapeHere * DvMargin;
+
+                sb.Append(",\"dv_to_escape\":");
+                sb.Append(F0(dvToEscapeHere));
+                sb.Append(",\"can_escape\":");
+                sb.Append(canEscape ? "true" : "false");
+
+                if (vessel.situation == Vessel.Situations.SUB_ORBITAL
+                    || vessel.situation == Vessel.Situations.FLYING)
+                {
+                    double dvToCirc = Math.Abs(vOrbital - currentSpeed);
+                    bool canCirc = vesselDvVac >= dvToCirc * DvMargin;
+                    sb.Append(",\"dv_to_circularize\":");
+                    sb.Append(F0(dvToCirc));
+                    sb.Append(",\"can_circularize\":");
+                    sb.Append(canCirc ? "true" : "false");
+
+                    if (!canCirc)
+                        issues.Add("dv " + F0(vesselDvVac) + " < " + F0(dvToCirc) + " needed to circularize");
+                }
+            }
+
+            // Stage diagnostics: flag stages with no propulsion
+            if (stages != null)
+            {
+                for (int i = 0; i < stages.Count; i++)
+                {
+                    var s = stages[i];
+                    if (s.thrustASL <= 0 && s.thrustVac <= 0 && (s.deltaVinVac > 0 || s.deltaVatASL > 0))
+                        issues.Add("Stage " + s.stage + " has dv but no thrust");
+                }
+            }
+
+            // Reachable destinations (compact: only name + dv needed)
+            double dvForTransfer = isOnSurface
+                ? Math.Max(0, vesselDvVac - dvToOrbit)
+                : vesselDvVac;
+
+            sb.Append(",\"destinations\":[");
+            bool first = true;
+
+            if (body.orbitingBodies != null)
+            {
+                foreach (var moon in body.orbitingBodies)
+                {
+                    double dv = HohmannDv(mu, orbitRadius, moon.orbit.semiMajorAxis, vOrbital);
+                    if (!first) sb.Append(",");
+                    first = false;
+                    sb.Append("{\"name\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(moon.bodyName));
+                    sb.Append("\",\"dv\":");
+                    sb.Append(F0(dv));
+                    sb.Append(",\"ok\":");
+                    sb.Append(dvForTransfer >= dv * DvMargin ? "true" : "false");
+                    sb.Append("}");
+                }
+            }
+
+            if (body.orbit != null && body.orbit.referenceBody != null)
+            {
+                var parent = body.orbit.referenceBody;
+                double muP = parent.gravParameter;
+                double bodyOrbitR = body.orbit.semiMajorAxis;
+                double vCircP = Math.Sqrt(muP / bodyOrbitR);
+
+                foreach (var sib in parent.orbitingBodies)
+                {
+                    if (sib == body) continue;
+                    double dv = dvOrbitToEscape + HohmannDv(muP, bodyOrbitR, sib.orbit.semiMajorAxis, vCircP);
+                    if (!first) sb.Append(",");
+                    first = false;
+                    sb.Append("{\"name\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(sib.bodyName));
+                    sb.Append("\",\"dv\":");
+                    sb.Append(F0(dv));
+                    sb.Append(",\"ok\":");
+                    sb.Append(dvForTransfer >= dv * DvMargin ? "true" : "false");
+                    sb.Append("}");
+                }
+            }
+
+            sb.Append("]");
+
+            // Issues
+            if (issues.Count > 0)
+            {
+                sb.Append(",\"issues\":[");
+                for (int i = 0; i < issues.Count; i++)
+                {
+                    if (i > 0) sb.Append(",");
+                    sb.Append("\"");
+                    sb.Append(JsonHelper.EscapeJsonString(issues[i]));
+                    sb.Append("\"");
+                }
+                sb.Append("]");
+            }
+
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        private static string F0(double v)
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v)) return "0";
+            return ((int)v).ToString();
+        }
+
+        private static string F2(double v)
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v)) return "0.00";
+            return v.ToString("F2");
+        }
+
+        /// <summary>
+        /// Hohmann transfer departure Δv. Pass precomputed vCirc to avoid redundant sqrt in loops.
+        /// </summary>
+        private static double HohmannDv(double mu, double r1, double r2, double vCirc)
+        {
+            double a = (r1 + r2) / 2.0;
+            double vTransfer = Math.Sqrt(mu * (2.0 / r1 - 1.0 / a));
+            return Math.Abs(vTransfer - vCirc);
+        }
     }
 }

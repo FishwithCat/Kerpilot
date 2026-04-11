@@ -49,6 +49,11 @@ namespace Kerpilot
                 "\"name\":\"list_vessels\"," +
                 "\"description\":\"List all vessels in the current game: name, type (Ship, Probe, Debris, etc.), orbital situation, parent body, apoapsis/periapsis, and mass. Use when the player asks about other rockets, ships, debris, or any non-active vessels.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
+            "}}," +
+            "{\"type\":\"function\",\"function\":{" +
+                "\"name\":\"analyze_vessel\"," +
+                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Computes Δv requirements from real body parameters (gravity, atmosphere), checks TWR, and lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
+                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}";
 
         public static string GetToolsJsonArray()
@@ -69,6 +74,7 @@ namespace Kerpilot
                 case "get_vessel_status": return "Reading flight status...";
                 case "get_atmosphere_data": return "Querying atmosphere data...";
                 case "list_vessels": return "Listing vessels...";
+                case "analyze_vessel": return "Analyzing vessel capabilities...";
                 default: return "Looking up game data...";
             }
         }
@@ -108,6 +114,9 @@ namespace Kerpilot
 
                     case "list_vessels":
                         return GameDataTools.ListVessels();
+
+                    case "analyze_vessel":
+                        return GameDataTools.AnalyzeVessel();
 
                     default:
                         return "{\"error\":\"Unknown tool: " + JsonHelper.EscapeJsonString(name) + "\"}";
