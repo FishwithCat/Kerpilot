@@ -135,41 +135,57 @@ namespace Kerpilot
                 Title = "Contracts Guide",
                 Content =
                     "KSP contracts have parameters (objectives) that must all be completed. Understanding parameter types helps plan missions.\n\n" +
+                    "CRITICAL RULE: Only advise on what the contract parameters explicitly require. Do NOT suggest extra objectives, " +
+                    "side activities, additional science experiments, or 'while you're there' detours beyond the contract scope. " +
+                    "The player's goal is to complete the contract, not to maximize a mission's output.\n\n" +
                     "COMMON CONTRACT TYPES AND THEIR REQUIREMENTS:\n\n" +
                     "1. GATHER SCIENTIFIC DATA FROM [BODY]:\n" +
                     "- Requires recovering or transmitting ANY science experiment data while at that body\n" +
-                    "- Run an experiment (crew report, EVA report, mystery goo, thermometer, etc.) at the body and either transmit it or recover the vessel on Kerbin\n" +
-                    "- You can be on the surface, in the atmosphere, or in orbit — any situation at that body counts\n" +
-                    "- Easiest approach: land on the body, run experiments, transmit or recover\n\n" +
+                    "- The cheapest approach: use the lowest-cost experiment available (crew report or EVA report cost nothing extra)\n" +
+                    "- For Kerbin: just run a crew report or EVA report on the launch pad — no flight needed\n" +
+                    "- For Mun/Minmus: an unmanned probe with a thermometer or barometer is cheaper than a crewed lander\n" +
+                    "- Transmitting data is cheaper than recovering if the vessel cannot return (no need for a return stage)\n\n" +
                     "2. EXPLORE [BODY] (World-Firsts):\n" +
-                    "- Multi-parameter contracts with specific milestones: orbit the body, land on the body, plant a flag, EVA on surface, return safely\n" +
-                    "- Each parameter must be achieved individually; check the contract details for exact requirements\n\n" +
+                    "- Multi-parameter contracts with specific milestones: orbit, land, plant flag, EVA, return\n" +
+                    "- Check which parameters are listed — not all exploration contracts require ALL milestones\n" +
+                    "- Only build for the milestones actually listed in the contract parameters\n\n" +
                     "3. TEST [PART] AT [LOCATION]:\n" +
                     "- Requires having the specified part on your vessel and activating it under specific conditions\n" +
-                    "- Conditions include: specific celestial body, altitude range (min/max), speed range, situation (landed, flying, orbit, sub-orbital)\n" +
+                    "- Conditions: celestial body, altitude range, speed range, situation (landed, flying, orbit, sub-orbital)\n" +
                     "- Right-click the part and choose 'Run Test' when ALL conditions are met simultaneously\n" +
-                    "- The test button only appears when conditions are satisfied\n\n" +
+                    "- Cost-saving: if test conditions are 'landed at Kerbin', just stage/activate on the launch pad\n" +
+                    "- If conditions are 'flying' at low altitude, a minimal rocket with just the test part and a decoupler is enough\n" +
+                    "- Only bring exactly the parts needed to reach the test conditions — no extras\n\n" +
                     "4. RESCUE KERBAL FROM ORBIT/SURFACE:\n" +
-                    "- A stranded Kerbal spawns in orbit or on a surface — rendezvous, EVA them to your ship, bring them home\n" +
-                    "- For orbit rescues: match orbit, get close, EVA the Kerbal over\n" +
-                    "- For surface rescues: land near them, EVA walk them to your ship\n\n" +
+                    "- Rendezvous with stranded Kerbal, EVA them to your ship, bring them home\n" +
+                    "- For LKO rescues: a small capsule with just enough Δv to rendezvous and deorbit\n" +
+                    "- Use the cheapest command pod that fits — a Mk1 pod is sufficient for one rescue\n" +
+                    "- The rescued Kerbal joins your roster for free — this contract is almost always profitable\n\n" +
                     "5. SATELLITE CONTRACTS (Position a satellite):\n" +
-                    "- Requires placing a vessel in a very specific orbit: target Ap, Pe, inclination, and sometimes LAN\n" +
-                    "- Must match ALL orbital parameters within tolerances shown in the contract\n" +
-                    "- Vessel must have an antenna and power generation\n\n" +
+                    "- Place a vessel in a specific orbit: target Ap, Pe, inclination, sometimes LAN\n" +
+                    "- Must match ALL orbital parameters within the tolerances shown\n" +
+                    "- Vessel needs only: probe core, antenna, power source (solar panel or battery) — absolute minimum\n" +
+                    "- Use the smallest probe core (OKTO or Stayputnik) and smallest solar panel to minimize cost\n\n" +
                     "6. SURVEY CONTRACTS (Survey a specific area):\n" +
-                    "- Fly over or land at specific geographic coordinates on a body\n" +
+                    "- Fly over or land at specific geographic coordinates\n" +
                     "- Each waypoint has altitude and situation requirements (flying low, flying high, landed)\n" +
-                    "- Use the waypoint markers on the map/navball to navigate\n\n" +
+                    "- For 'flying' waypoints: a simple plane or rocket that can reach the altitude is enough\n" +
+                    "- For 'landed' waypoints: a small lander or rover; use parachutes if the body has atmosphere\n\n" +
                     "7. TOURISM CONTRACTS:\n" +
                     "- Take tourist Kerbals to specified destinations (orbit body, flyby body, sub-orbital)\n" +
-                    "- Tourists cannot EVA or control the vessel — they are passengers only\n" +
-                    "- Multiple tourists can share one vessel if destinations overlap\n\n" +
-                    "GENERAL TIPS:\n" +
+                    "- Tourists are passengers only — they cannot EVA or control the vessel\n" +
+                    "- Bundle multiple tourists going to the same destination in one flight\n" +
+                    "- For sub-orbital tourism: the cheapest possible rocket that clears 70km and returns safely\n\n" +
+                    "CAREER MODE ECONOMY:\n" +
+                    "- Always compare contract reward vs. estimated mission cost before accepting\n" +
+                    "- Favor contracts where reward >> cost: rescue missions, Kerbin-area part tests, Kerbin science\n" +
+                    "- Reuse vessel designs across similar contracts — don't redesign from scratch each time\n" +
+                    "- When suggesting a vessel, minimize part count and use the cheapest parts that meet requirements\n" +
+                    "- Do NOT over-engineer: if the contract only needs orbit, don't build for landing; if it only needs flyby, don't build for orbit insertion\n\n" +
+                    "TOOLS:\n" +
                     "- Use get_active_contracts to check current objectives and their completion state\n" +
                     "- Use get_offered_contracts to browse available contracts before accepting\n" +
                     "- Parameters show 'Complete' or 'Incomplete' state — track progress in-flight\n" +
-                    "- Some contracts have deadlines — check deadline_days in offered contracts\n" +
                     "- Combine multiple contracts for the same destination in one mission to save resources",
                 Keywords = new[]
                 {
