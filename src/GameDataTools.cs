@@ -1,9 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
-using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Kerpilot
 {
@@ -589,113 +586,5 @@ namespace Kerpilot
             return sb.ToString();
         }
 
-        private const string WikiApiBase = "https://wiki.kerbalspaceprogram.com/api.php";
-        private const int WikiMaxChars = 3000;
-
-        public static IEnumerator BrowseKspWiki(string query, Action<string> onResult)
-        {
-            if (string.IsNullOrEmpty(query))
-            {
-                onResult("{\"error\":\"query parameter is required.\"}");
-                yield break;
-            }
-
-            // Step 1: Search for matching pages
-            string searchUrl = WikiApiBase +
-                "?action=query&list=search&srsearch=" + UnityWebRequest.EscapeURL(query) +
-                "&srlimit=3&format=json";
-
-            var searchReq = UnityWebRequest.Get(searchUrl);
-            yield return searchReq.SendWebRequest();
-
-            if (searchReq.isNetworkError || searchReq.isHttpError)
-            {
-                onResult("{\"error\":\"Wiki search failed: " + JsonHelper.EscapeJsonString(searchReq.error) + "\"}");
-                searchReq.Dispose();
-                yield break;
-            }
-
-            string searchJson = searchReq.downloadHandler.text;
-            searchReq.Dispose();
-
-            // Extract page titles from search results
-            var titles = ExtractSearchTitles(searchJson);
-            if (titles.Count == 0)
-            {
-                onResult("{\"error\":\"No wiki pages found for query: " + JsonHelper.EscapeJsonString(query) + "\"}");
-                yield break;
-            }
-
-            // Step 2: Fetch the top result's content as plain text
-            string pageTitle = titles[0];
-            string extractUrl = WikiApiBase +
-                "?action=query&titles=" + UnityWebRequest.EscapeURL(pageTitle) +
-                "&prop=extracts&explaintext=true&exchars=" + WikiMaxChars + "&format=json";
-
-            var extractReq = UnityWebRequest.Get(extractUrl);
-            yield return extractReq.SendWebRequest();
-
-            if (extractReq.isNetworkError || extractReq.isHttpError)
-            {
-                onResult("{\"error\":\"Wiki page fetch failed: " + JsonHelper.EscapeJsonString(extractReq.error) + "\"}");
-                extractReq.Dispose();
-                yield break;
-            }
-
-            string extractJson = extractReq.downloadHandler.text;
-            extractReq.Dispose();
-
-            string extract = JsonHelper.ExtractJsonStringValue(extractJson, "extract");
-
-            var sb = new StringBuilder();
-            sb.Append("{\"title\":\"");
-            sb.Append(JsonHelper.EscapeJsonString(pageTitle));
-            sb.Append("\",\"url\":\"https://wiki.kerbalspaceprogram.com/wiki/");
-            sb.Append(JsonHelper.EscapeJsonString(pageTitle.Replace(' ', '_')));
-            sb.Append("\",\"content\":\"");
-            sb.Append(JsonHelper.EscapeJsonString(extract ?? "(No content found)"));
-            sb.Append("\"");
-
-            // Include other search results as related pages
-            if (titles.Count > 1)
-            {
-                sb.Append(",\"related_pages\":[");
-                for (int i = 1; i < titles.Count; i++)
-                {
-                    if (i > 1) sb.Append(",");
-                    sb.Append("\"");
-                    sb.Append(JsonHelper.EscapeJsonString(titles[i]));
-                    sb.Append("\"");
-                }
-                sb.Append("]");
-            }
-
-            sb.Append("}");
-            onResult(sb.ToString());
-        }
-
-        private static List<string> ExtractSearchTitles(string json)
-        {
-            var titles = new List<string>();
-            // Search results are in "search":[{"title":"..."},...]
-            // Find each "title" after "search" array
-            int searchIdx = json.IndexOf("\"search\"");
-            if (searchIdx < 0) return titles;
-
-            int pos = searchIdx;
-            while (titles.Count < 5)
-            {
-                int titleIdx = json.IndexOf("\"title\"", pos);
-                if (titleIdx < 0) break;
-
-                string title = JsonHelper.ExtractJsonStringValue(
-                    json.Substring(titleIdx), "title");
-                if (title != null)
-                    titles.Add(title);
-
-                pos = titleIdx + 7;
-            }
-            return titles;
-        }
     }
 }

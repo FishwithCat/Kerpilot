@@ -566,10 +566,8 @@ namespace Kerpilot
                         statusFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
                         _coroutineHost.StartCoroutine(ScrollToBottom());
 
-                        string result = null;
-                        yield return ToolDefinitions.ExecuteToolCoroutine(
-                            tc.FunctionName, tc.Arguments, r => result = r);
-                        _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result ?? "{}"));
+                        string result = ToolDefinitions.ExecuteTool(tc.FunctionName, tc.Arguments);
+                        _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result));
 
                         Object.Destroy(statusObj);
                     }

@@ -16,19 +16,6 @@ namespace Kerpilot.Tests
             "get_vessel_delta_v",
             "get_vessel_orbit",
             "get_vessel_status",
-            "get_atmosphere_data",
-            "browse_ksp_wiki"
-        };
-
-        private static readonly string[] FlightOnlyTools =
-        {
-            "get_vessel_parts",
-            "get_part_info",
-            "get_celestial_body",
-            "get_active_contracts",
-            "get_vessel_delta_v",
-            "get_vessel_orbit",
-            "get_vessel_status",
             "get_atmosphere_data"
         };
 
@@ -77,7 +64,7 @@ namespace Kerpilot.Tests
                 count++;
                 pos = idx + 1;
             }
-            Assert.That(count, Is.EqualTo(9), "Expected exactly 9 tool definitions");
+            Assert.That(count, Is.EqualTo(8), "Expected exactly 8 tool definitions");
         }
 
         [Test]
@@ -128,15 +115,6 @@ namespace Kerpilot.Tests
             int requiredIdx = toolsJson.IndexOf("\"required\":[\"body_name\"]", cbIdx);
             Assert.That(requiredIdx, Is.GreaterThan(cbIdx),
                 "get_celestial_body should require body_name parameter");
-        }
-
-        [Test]
-        public void BrowseKspWiki_RequiresQuery()
-        {
-            int wikiIdx = toolsJson.IndexOf("\"name\":\"browse_ksp_wiki\"");
-            int requiredIdx = toolsJson.IndexOf("\"required\":[\"query\"]", wikiIdx);
-            Assert.That(requiredIdx, Is.GreaterThan(wikiIdx),
-                "browse_ksp_wiki should require query parameter");
         }
 
         [Test]
@@ -383,7 +361,6 @@ namespace Kerpilot.Tests
 
             Assert.That(body, Does.Contain("\"tools\":"));
             Assert.That(body, Does.Contain("get_vessel_parts"));
-            Assert.That(body, Does.Contain("browse_ksp_wiki"));
         }
 
         [Test]

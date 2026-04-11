@@ -77,18 +77,7 @@ namespace Kerpilot
                 else if (request.isNetworkError)
                     errorMsg = "Network error: " + request.error;
                 else
-                {
-                    // Include API error details from the response body for debugging
-                    string rawBody = streamHandler.GetRawResponse();
-                    string detail = null;
-                    if (!string.IsNullOrEmpty(rawBody))
-                        detail = JsonHelper.ExtractJsonStringValue(rawBody, "message")
-                              ?? JsonHelper.ExtractJsonStringValue(rawBody, "error");
-                    if (!string.IsNullOrEmpty(detail))
-                        errorMsg = "API error (" + request.responseCode + "): " + detail;
-                    else
-                        errorMsg = "API error (" + request.responseCode + "): " + request.error;
-                }
+                    errorMsg = "API error (" + request.responseCode + "): " + request.error;
 
                 // If we got some tokens before the error, still complete with what we have
                 if (accumulated.Length > 0)
@@ -119,7 +108,6 @@ namespace Kerpilot
     public class SseDownloadHandler : DownloadHandlerScript
     {
         private readonly StringBuilder _buffer = new StringBuilder();
-        private readonly StringBuilder _rawResponse = new StringBuilder();
         private readonly StringBuilder _pendingTokens = new StringBuilder();
         private readonly List<ToolCallAccumulator> _toolCalls = new List<ToolCallAccumulator>();
         private bool _hasToolCalls;
@@ -133,14 +121,6 @@ namespace Kerpilot
 
         public bool HasToolCalls => _hasToolCalls;
 
-        /// <summary>
-        /// Returns the raw received data (useful for reading error response bodies).
-        /// </summary>
-        public string GetRawResponse()
-        {
-            return _rawResponse.ToString();
-        }
-
         public List<ToolCall> GetToolCalls()
         {
             var result = new List<ToolCall>();
@@ -152,7 +132,6 @@ namespace Kerpilot
         protected override bool ReceiveData(byte[] data, int dataLength)
         {
             string chunk = Encoding.UTF8.GetString(data, 0, dataLength);
-            _rawResponse.Append(chunk);
             _buffer.Append(chunk);
             ProcessBuffer();
             return true;

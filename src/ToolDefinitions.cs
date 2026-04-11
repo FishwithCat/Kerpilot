@@ -1,17 +1,9 @@
 using System;
-using System.Collections;
 
 namespace Kerpilot
 {
     public static class ToolDefinitions
     {
-        private const string WikiToolJson =
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"browse_ksp_wiki\"," +
-                "\"description\":\"Search and read the official KSP Wiki (wiki.kerbalspaceprogram.com) for tutorials, game mechanics, part details, celestial body data, and gameplay guides. Use when the player asks about game mechanics, how-to guides, or information not available from other tools.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query for the KSP wiki (e.g. 'Hohmann transfer', 'docking tutorial', 'delta-v map')\"}},\"required\":[\"query\"]}" +
-            "}}";
-
         private const string FlightToolsJson =
             "{\"type\":\"function\",\"function\":{" +
                 "\"name\":\"get_vessel_parts\"," +
@@ -56,7 +48,7 @@ namespace Kerpilot
 
         public static string GetToolsJsonArray()
         {
-            return "[" + FlightToolsJson + "," + WikiToolJson + "]";
+            return "[" + FlightToolsJson + "]";
         }
 
         public static string GetToolStatusLabel(string name)
@@ -71,25 +63,7 @@ namespace Kerpilot
                 case "get_vessel_orbit": return "Reading orbit data...";
                 case "get_vessel_status": return "Reading flight status...";
                 case "get_atmosphere_data": return "Querying atmosphere data...";
-                case "browse_ksp_wiki": return "Searching KSP Wiki...";
                 default: return "Looking up game data...";
-            }
-        }
-
-        /// <summary>
-        /// Executes a tool as a coroutine. Sync tools complete immediately;
-        /// async tools (wiki) yield for HTTP requests.
-        /// </summary>
-        public static IEnumerator ExecuteToolCoroutine(string name, string argumentsJson, Action<string> onResult)
-        {
-            if (name == "browse_ksp_wiki")
-            {
-                string query = JsonHelper.ExtractJsonStringValue(argumentsJson, "query");
-                yield return GameDataTools.BrowseKspWiki(query, onResult);
-            }
-            else
-            {
-                onResult(ExecuteTool(name, argumentsJson));
             }
         }
 

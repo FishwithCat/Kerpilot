@@ -43,7 +43,7 @@ Key design decisions:
 - All UI is built programmatically via uGUI (no asset bundles, no OnGUI/IMGUI)
 - Rounded-rect sprites generated at runtime with 9-slice for bubble backgrounds
 - **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. UI updates are throttled to ~10fps via a dedicated `StreamingUiLoop` coroutine to avoid layout rebuild spam. `ChatMessage` stays immutable — only the UI `Text` component is updated during streaming; the final `ChatMessage` is created on completion.
-- **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`) and the KSP Wiki (via MediaWiki API). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed (sync for game data, async coroutine for wiki HTTP) and results sent back until the LLM produces a text response. Game data tools are only available in flight scene; wiki tool is always available. Per-tool status labels (e.g. "Searching KSP Wiki...") are shown as plain italic text during execution.
+- **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 8 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `PartLoader`, `CelestialBody`, `ContractSystem`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. All tools require flight scene. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
 - **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
 - **UI rendering sharpness requirements:**
@@ -59,7 +59,7 @@ dotnet test tests/Kerpilot.Tests.csproj -c Release
 ```
 
 NUnit test suite (`tests/ToolAvailabilityTests.cs`) verifies tool infrastructure without requiring a running KSP instance:
-- **Tool definitions**: All 9 tools present in JSON array, each with description and parameters schema, required parameters correct
+- **Tool definitions**: All 8 tools present in JSON array, each with description and parameters schema, required parameters correct
 - **Status labels**: Every tool name maps to a non-empty label ending in "..."
 - **ExecuteTool dispatch**: Unknown tools return error JSON with escaped names; missing required params return errors (not exceptions)
 - **JsonHelper parsing**: `ExtractJsonStringValue` for tool arguments, SSE `tool_calls` detection/extraction (index, id, function name, arguments fragments)
