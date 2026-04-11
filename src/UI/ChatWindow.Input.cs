@@ -31,6 +31,12 @@ namespace Kerpilot
             _inputField.text = "";
             _inputField.ActivateInputField();
 
+            if (text.Equals("clear", System.StringComparison.OrdinalIgnoreCase))
+            {
+                ClearChat();
+                return;
+            }
+
             if (!_settings.IsConfigured)
             {
                 AddMessage(new ChatMessage(MessageSender.User, text));

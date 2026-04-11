@@ -20,9 +20,11 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
   - Orbital Mechanics: Hohmann transfers, gravity turns, inclination changes, rendezvous, aerobraking
   - Rocket Design: staging, TWR guidelines, Tsiolkovsky equation, aerodynamic stability, engine selection
   - Delta-v Budget: complete KSP delta-v map data, mission budgets, safety margins
+  - Contracts Guide: contract types (science gathering, part testing, rescue, satellite, survey, tourism), parameter requirements, completion tips
 - Settings panel to configure API endpoint, API key, and model
 - Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
+- Type `clear` in the chat to reset conversation history
 - Draggable window
 - Input lock prevents chat keystrokes from triggering vessel controls
 - Available in Space Center, Flight, Map View, and VAB/SPH scenes (vessel tools work in both flight and editor)

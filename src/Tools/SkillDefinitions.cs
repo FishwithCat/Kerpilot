@@ -128,6 +128,61 @@ namespace Kerpilot
                     "dres", "laythe", "tylo", "vall", "pol", "bop",
                     "map", "mission plan", "round trip"
                 }
+            },
+            new Skill
+            {
+                Id = "contracts_guide",
+                Title = "Contracts Guide",
+                Content =
+                    "KSP contracts have parameters (objectives) that must all be completed. Understanding parameter types helps plan missions.\n\n" +
+                    "COMMON CONTRACT TYPES AND THEIR REQUIREMENTS:\n\n" +
+                    "1. GATHER SCIENTIFIC DATA FROM [BODY]:\n" +
+                    "- Requires recovering or transmitting ANY science experiment data while at that body\n" +
+                    "- Run an experiment (crew report, EVA report, mystery goo, thermometer, etc.) at the body and either transmit it or recover the vessel on Kerbin\n" +
+                    "- You can be on the surface, in the atmosphere, or in orbit — any situation at that body counts\n" +
+                    "- Easiest approach: land on the body, run experiments, transmit or recover\n\n" +
+                    "2. EXPLORE [BODY] (World-Firsts):\n" +
+                    "- Multi-parameter contracts with specific milestones: orbit the body, land on the body, plant a flag, EVA on surface, return safely\n" +
+                    "- Each parameter must be achieved individually; check the contract details for exact requirements\n\n" +
+                    "3. TEST [PART] AT [LOCATION]:\n" +
+                    "- Requires having the specified part on your vessel and activating it under specific conditions\n" +
+                    "- Conditions include: specific celestial body, altitude range (min/max), speed range, situation (landed, flying, orbit, sub-orbital)\n" +
+                    "- Right-click the part and choose 'Run Test' when ALL conditions are met simultaneously\n" +
+                    "- The test button only appears when conditions are satisfied\n\n" +
+                    "4. RESCUE KERBAL FROM ORBIT/SURFACE:\n" +
+                    "- A stranded Kerbal spawns in orbit or on a surface — rendezvous, EVA them to your ship, bring them home\n" +
+                    "- For orbit rescues: match orbit, get close, EVA the Kerbal over\n" +
+                    "- For surface rescues: land near them, EVA walk them to your ship\n\n" +
+                    "5. SATELLITE CONTRACTS (Position a satellite):\n" +
+                    "- Requires placing a vessel in a very specific orbit: target Ap, Pe, inclination, and sometimes LAN\n" +
+                    "- Must match ALL orbital parameters within tolerances shown in the contract\n" +
+                    "- Vessel must have an antenna and power generation\n\n" +
+                    "6. SURVEY CONTRACTS (Survey a specific area):\n" +
+                    "- Fly over or land at specific geographic coordinates on a body\n" +
+                    "- Each waypoint has altitude and situation requirements (flying low, flying high, landed)\n" +
+                    "- Use the waypoint markers on the map/navball to navigate\n\n" +
+                    "7. TOURISM CONTRACTS:\n" +
+                    "- Take tourist Kerbals to specified destinations (orbit body, flyby body, sub-orbital)\n" +
+                    "- Tourists cannot EVA or control the vessel — they are passengers only\n" +
+                    "- Multiple tourists can share one vessel if destinations overlap\n\n" +
+                    "GENERAL TIPS:\n" +
+                    "- Use get_active_contracts to check current objectives and their completion state\n" +
+                    "- Use get_offered_contracts to browse available contracts before accepting\n" +
+                    "- Parameters show 'Complete' or 'Incomplete' state — track progress in-flight\n" +
+                    "- Some contracts have deadlines — check deadline_days in offered contracts\n" +
+                    "- Combine multiple contracts for the same destination in one mission to save resources",
+                Keywords = new[]
+                {
+                    "contract", "contracts", "mission", "missions", "objective", "objectives",
+                    "gather scientific data", "gather science", "science data",
+                    "explore", "world first", "world-first",
+                    "test part", "test a part", "part test",
+                    "rescue", "rescue kerbal", "stranded",
+                    "satellite", "position a satellite", "specific orbit",
+                    "survey", "waypoint",
+                    "tourism", "tourist", "tourists",
+                    "accept", "deadline", "reward", "reputation"
+                }
             }
         };
 

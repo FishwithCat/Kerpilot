@@ -126,6 +126,14 @@ namespace Kerpilot
             InputLockManager.RemoveControlLock(InputLockId);
         }
 
+        private void ClearChat()
+        {
+            _conversationHistory.Clear();
+            _logBuilder.Clear();
+            _logBuilder.Append(FormatAiLine("chat cleared. type a message to begin."));
+            FlushLog();
+        }
+
         private void AddMessage(ChatMessage msg)
         {
             AppendToLog(FormatMessageLine(msg));

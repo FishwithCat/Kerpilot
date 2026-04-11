@@ -60,6 +60,28 @@ namespace Kerpilot.Tests
         }
 
         [Test]
+        public void SelectSkills_ContractQuery_MatchesContractsGuide()
+        {
+            var result = SkillSelector.SelectSkills("How do I complete this contract?");
+            Assert.IsTrue(result.Count >= 1);
+            bool found = false;
+            foreach (var s in result)
+                if (s.Id == "contracts_guide") found = true;
+            Assert.IsTrue(found, "contracts_guide should match for contract query");
+        }
+
+        [Test]
+        public void SelectSkills_GatherScience_MatchesContractsGuide()
+        {
+            var result = SkillSelector.SelectSkills("How do I gather scientific data from Kerbin?");
+            Assert.IsTrue(result.Count >= 1);
+            bool found = false;
+            foreach (var s in result)
+                if (s.Id == "contracts_guide") found = true;
+            Assert.IsTrue(found, "contracts_guide should match for gather science query");
+        }
+
+        [Test]
         public void SelectSkills_ReturnsAtMostTwo()
         {
             // A message that could match all three skills
