@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resource/logo.png" alt="Kerpilot" width="200">
+</p>
+
 # Kerpilot
 
 A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
@@ -96,6 +100,30 @@ Run the tests:
 ```bash
 dotnet test tests/Kerpilot.Tests.csproj -c Release
 ```
+
+## Contribute
+
+1. Fork the repository and create a feature branch from `main`
+2. Make sure your KSP install is set up for building (see [Build](#build))
+3. Make your changes and verify the build passes:
+   ```bash
+   dotnet build -c Release
+   ```
+4. Run the test suite:
+   ```bash
+   dotnet test tests/Kerpilot.Tests.csproj -c Release
+   ```
+5. Test in-game with KSP 1.12.5
+6. Open a pull request against `main`
+
+### Guidelines
+
+- All UI is built programmatically with uGUI — no asset bundles or IMGUI
+- Follow the terminal-style interface pattern (single rich-text log, `<color>` tags, `FormatLine()`)
+- New tools go in `src/Tools/` — add a JSON schema in `ToolDefinitions.cs` and implement in `GameDataTools.cs`
+- New skills go in `src/Tools/SkillDefinitions.cs` with keywords for automatic selection
+- Add tests for new tools or skills in the `tests/` project
+- Keep the mod lightweight — no external dependencies beyond KSP/Unity assemblies
 
 ## License
 
