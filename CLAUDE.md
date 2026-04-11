@@ -34,6 +34,9 @@ src/
 GameData/Kerpilot/
   Plugins/                   # Deployed DLL (symlinked into KSP GameData)
   PluginData/settings.cfg    # User settings (created at runtime, not committed)
+tests/
+  Kerpilot.Tests.csproj      # NUnit test project (net472, references main project + KSP DLLs)
+  ToolAvailabilityTests.cs   # Tests for tool definitions, dispatch, JSON parsing, request body
 ```
 
 Key design decisions:
@@ -48,6 +51,20 @@ Key design decisions:
   - Canvas: set `pixelPerfect = true` to force pixel-aligned rendering
   - CanvasScaler: use `ConstantPixelSize` with `scaleFactor = 1` (no canvas scaling). All sizes are manually computed via `UIStyleConstants.Scaled()`/`ScaledFont()` based on `Screen.height / 1080f`. This ensures font sizes are rounded to integers so the font atlas renders at exact pixel boundaries — CanvasScaler scaling renders at base size then upscales, causing blur.
   - Font sizes: minimum 12px for dynamic fonts (below 12 renders poorly in Unity)
+
+## Tests
+
+```bash
+dotnet test tests/Kerpilot.Tests.csproj -c Release
+```
+
+NUnit test suite (`tests/ToolAvailabilityTests.cs`) verifies tool infrastructure without requiring a running KSP instance:
+- **Tool definitions**: All 9 tools present in JSON array, each with description and parameters schema, required parameters correct
+- **Status labels**: Every tool name maps to a non-empty label ending in "..."
+- **ExecuteTool dispatch**: Unknown tools return error JSON with escaped names; missing required params return errors (not exceptions)
+- **JsonHelper parsing**: `ExtractJsonStringValue` for tool arguments, SSE `tool_calls` detection/extraction (index, id, function name, arguments fragments)
+- **ChatMessage model**: `ToolCall` properties, `CreateAssistantToolCall`/`CreateToolResult` factory methods
+- **Request body**: `BuildChatRequestBody` includes tools JSON, serializes tool call history correctly, omits tools field when null
 
 ## Rules
 

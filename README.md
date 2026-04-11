@@ -71,6 +71,16 @@ ln -s "$(pwd)/GameData/Kerpilot" "/path/to/Kerbal Space Program/GameData/Kerpilo
 5. Click **Save**, then **Back** to return to chat
 6. Type a message and press **Send** or **Enter** — the AI will respond with streamed tokens
 
+## Tests
+
+The project includes a test suite that verifies tool availability, dispatch routing, JSON parsing, and request body construction — all without requiring a running KSP instance.
+
+Run the tests:
+
+```bash
+dotnet test tests/Kerpilot.Tests.csproj -c Release
+```
+
 ## License
 
 [GPL-3.0](LICENSE)

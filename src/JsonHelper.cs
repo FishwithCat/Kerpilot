@@ -83,7 +83,16 @@ namespace Kerpilot
                 }
                 else if (msg.Role == MessageRole.Assistant && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
                 {
-                    sb.Append(",{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[");
+                    sb.Append(",{\"role\":\"assistant\",\"content\":");
+                    if (string.IsNullOrEmpty(msg.Text))
+                        sb.Append("null");
+                    else
+                    {
+                        sb.Append("\"");
+                        sb.Append(EscapeJsonString(msg.Text));
+                        sb.Append("\"");
+                    }
+                    sb.Append(",\"tool_calls\":[");
                     for (int t = 0; t < msg.ToolCalls.Count; t++)
                     {
                         if (t > 0) sb.Append(",");

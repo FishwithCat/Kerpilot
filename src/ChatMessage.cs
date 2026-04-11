@@ -58,9 +58,9 @@ namespace Kerpilot
             Timestamp = DateTime.Now;
         }
 
-        public static ChatMessage CreateAssistantToolCall(List<ToolCall> toolCalls)
+        public static ChatMessage CreateAssistantToolCall(List<ToolCall> toolCalls, string content = null)
         {
-            return new ChatMessage(MessageRole.Assistant, null, toolCalls, null);
+            return new ChatMessage(MessageRole.Assistant, content, toolCalls, null);
         }
 
         public static ChatMessage CreateToolResult(string toolCallId, string content)

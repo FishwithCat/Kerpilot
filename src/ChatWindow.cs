@@ -515,17 +515,33 @@ namespace Kerpilot
 
                 if (pendingToolCalls != null)
                 {
-                    // Add assistant tool-call message to history
-                    _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(pendingToolCalls));
+                    // Check if LLM streamed visible content before the tool calls
+                    string contentBeforeTools = latestText != null ? latestText.Trim() : null;
+                    bool hasVisibleContent = !string.IsNullOrEmpty(contentBeforeTools);
 
-                    // Destroy any premature bubble created by content tokens
-                    // that arrived before the tool_calls chunks
+                    // Add assistant tool-call message to history (with content if any)
+                    _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(
+                        pendingToolCalls, hasVisibleContent ? contentBeforeTools : null));
+
                     if (bubbleRow != null)
                     {
-                        Object.Destroy(bubbleRow);
-                        bubbleRow = null;
-                        messageText = null;
-                        latestText = null;
+                        if (hasVisibleContent)
+                        {
+                            // Keep the bubble — update with trimmed text and reset for next round
+                            messageText.text = contentBeforeTools;
+                            LayoutRebuilder.MarkLayoutForRebuild(_contentRectTransform);
+                            bubbleRow = null;
+                            messageText = null;
+                            latestText = null;
+                        }
+                        else
+                        {
+                            // Whitespace-only — destroy the premature bubble
+                            Object.Destroy(bubbleRow);
+                            bubbleRow = null;
+                            messageText = null;
+                            latestText = null;
+                        }
                     }
 
                     // Destroy thinking label — we'll show per-tool status instead

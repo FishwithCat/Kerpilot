@@ -589,7 +589,7 @@ namespace Kerpilot
             return sb.ToString();
         }
 
-        private const string WikiApiBase = "https://wiki.kerbalspaceprogram.com/w/api.php";
+        private const string WikiApiBase = "https://wiki.kerbalspaceprogram.com/api.php";
         private const int WikiMaxChars = 3000;
 
         public static IEnumerator BrowseKspWiki(string query, Action<string> onResult)
