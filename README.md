@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resource/logo.png" alt="Kerpilot" width="200">
+  <img src="resource/logo.jpg" alt="Kerpilot" width="400">
 </p>
 
 # Kerpilot
