@@ -10,7 +10,7 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 
 ## Demo
 
-<video src="resource/Screen_record.mov" controls width="600"></video>
+https://github.com/user-attachments/assets/5dccb244-eced-4d55-9c8b-d1881dd4e844
 
 ## Features
 
