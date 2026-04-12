@@ -69,8 +69,13 @@
   </ItemGroup>
 
   <Target Name="CopyToGameData" AfterTargets="Build">
+    <ItemGroup>
+      <SkillSources Include="$(ProjectDir)src/Skills/*.md" />
+    </ItemGroup>
     <Copy SourceFiles="$(OutputPath)Kerpilot.dll"
           DestinationFolder="$(ModDir)/Plugins/" />
+    <Copy SourceFiles="@(SkillSources)"
+          DestinationFolder="$(ModDir)/Skills/" />
   </Target>
 
   <!-- Package: create a distributable zip -->
@@ -83,6 +88,9 @@
     <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Plugins" />
     <Copy SourceFiles="$(ModDir)/Plugins/Kerpilot.dll"
           DestinationFolder="$(PackageDir)/staging/Kerpilot/Plugins/" />
+    <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Skills" />
+    <Copy SourceFiles="$(ModDir)/Skills/*.md"
+          DestinationFolder="$(PackageDir)/staging/Kerpilot/Skills/" />
     <ZipDirectory SourceDirectory="$(PackageDir)/staging"
                   DestinationFile="$(ZipFile)"
                   Overwrite="true" />

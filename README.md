@@ -64,7 +64,7 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 
 ## Install
 
-**From release zip:** Download the latest `Kerpilot-vX.Y.Z.zip` from [Releases](https://github.com/your-username/Kerpilot/releases), extract it into your KSP `GameData/` directory so the path is `GameData/Kerpilot/Plugins/Kerpilot.dll`.
+**From release zip:** Download the latest `Kerpilot-vX.Y.Z.zip` from [Releases](https://github.com/your-username/Kerpilot/releases), extract it into your KSP `GameData/` directory so the structure is `GameData/Kerpilot/Plugins/Kerpilot.dll` and `GameData/Kerpilot/Skills/*.md`.
 
 **For development:** Symlink the `GameData/Kerpilot` folder into your KSP `GameData` directory:
 
@@ -121,7 +121,7 @@ dotnet test tests/Kerpilot.Tests.csproj -c Release
 - All UI is built programmatically with uGUI — no asset bundles or IMGUI
 - Follow the terminal-style interface pattern (single rich-text log, `<color>` tags, `FormatLine()`)
 - New tools go in `src/Tools/` — add a JSON schema in `ToolDefinitions.cs` and implement in `GameDataTools.cs`
-- New skills go in `src/Tools/SkillDefinitions.cs` with keywords for automatic selection
+- New skills: add a `.md` file to `GameData/Kerpilot/Skills/` with frontmatter (`id`, `title`, `keywords`) — loaded automatically at runtime
 - Add tests for new tools or skills in the `tests/` project
 - Keep the mod lightweight — no external dependencies beyond KSP/Unity assemblies
 

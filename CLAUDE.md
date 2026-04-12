@@ -42,10 +42,16 @@ src/
   Tools/                     # KSP game data and domain knowledge
     ToolDefinitions.cs       # Tool JSON schemas, dispatch to GameDataTools
     GameDataTools.cs         # KSP game data queries, vessel capability analysis (vessel parts, celestial bodies, contracts, Δv analysis, etc.)
-    SkillDefinitions.cs      # Domain knowledge skills: orbital mechanics, rocket design, delta-v budget
+    SkillDefinitions.cs      # Skill struct, frontmatter parser, lazy file loader from GameData/Kerpilot/Skills/
     SkillSelector.cs         # Keyword-based skill matching, dynamic system prompt composition
+  Skills/                    # Source .md skill files (copied to GameData/Kerpilot/Skills/ at build time)
+    orbital_mechanics.md     # Patched conics, burn directions, Hohmann transfers, gravity turns, rendezvous
+    rocket_design.md         # Staging, TWR, Tsiolkovsky equation, aerodynamics, engine selection
+    delta_v_budget.md        # Δv estimation, budgeting tips, transfer planning
+    contracts_guide.md       # Contract types, parameter requirements, economy advice
 GameData/Kerpilot/
-  Plugins/                   # Deployed DLL (symlinked into KSP GameData)
+  Plugins/                   # Deployed DLL (build output, symlinked into KSP GameData)
+  Skills/                    # Deployed skill .md files (build output, copied from src/Skills/)
   PluginData/settings.cfg    # User settings (created at runtime, not committed)
 tests/
   Kerpilot.Tests.csproj      # NUnit test project (net472, references main project + KSP DLLs)
@@ -59,7 +65,7 @@ Key design decisions:
 - Rounded-rect sprites generated at runtime with 9-slice via `SpriteFactory` (used by settings panel input fields)
 - **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. `StreamingUiLoop` coroutine drives a typewriter effect, throttled to ~10fps with change detection to avoid layout rebuild spam. During streaming, `_logBuilder.Length` snapshots enable efficient rollback without string copies. The final `ChatMessage` is created on completion.
 - **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 12 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `EditorLogic`, `PartLoader`, `CelestialBody`, `ContractSystem`, `ResearchAndDevelopment`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. Core vessel tools (`get_vessel_parts`, `get_vessel_delta_v`, `analyze_vessel`) work in both flight and VAB/SPH editor via `TryGetShipParts`/`TryGetDeltaV` helpers that auto-detect the scene; orbit/status/list tools remain flight-only. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
-- **Skills (domain knowledge injection)**: `SkillDefinitions` stores 4 knowledge skills (orbital mechanics, rocket design, delta-v budget, contracts guide) as C# string constants. `SkillSelector` uses keyword matching on the user's latest message to select up to 2 relevant skills and appends their content to the system prompt. This happens in `LlmClient.SendChatRequest` before building the request body. Skills are compiled into the DLL (no external files).
+- **Skills (domain knowledge injection)**: Skills are `.md` files in `src/Skills/` with YAML-like frontmatter (`id`, `title`, `keywords`) and markdown body content, copied to `GameData/Kerpilot/Skills/` at build time. `SkillDefinitions` lazily loads and caches all `*.md` files from the deployed directory on first access, parsing frontmatter via simple string splitting. `SkillSelector` uses keyword matching on the user's latest message to select up to 2 relevant skills and appends their content to the system prompt. This happens in `LlmClient.SendChatRequest` before building the request body. Users can add custom skills by dropping `.md` files in the Skills directory.
 - **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
 - **UI rendering sharpness requirements:**

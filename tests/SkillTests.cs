@@ -6,6 +6,84 @@ namespace Kerpilot.Tests
     [TestFixture]
     public class SkillTests
     {
+        private static readonly SkillDefinitions.Skill[] TestSkills = new[]
+        {
+            new SkillDefinitions.Skill
+            {
+                Id = "orbital_mechanics",
+                Title = "Orbital Mechanics",
+                Content = "KSP uses patched conics.",
+                Keywords = new[]
+                {
+                    "orbit", "orbital", "apoapsis", "periapsis", "hohmann", "transfer",
+                    "maneuver", "node", "inclination", "prograde", "retrograde",
+                    "normal", "antinormal", "radial", "gravity turn", "circularize",
+                    "rendezvous", "dock", "docking", "aerobrake", "aerobraking",
+                    "soi", "sphere of influence", "encounter", "intercept", "burn",
+                    "phase angle", "ascending node", "descending node"
+                }
+            },
+            new SkillDefinitions.Skill
+            {
+                Id = "rocket_design",
+                Title = "Rocket Design",
+                Content = "Staging and TWR principles.",
+                Keywords = new[]
+                {
+                    "design", "build", "stage", "staging", "twr", "thrust",
+                    "mass ratio", "engine", "isp", "specific impulse",
+                    "fairing", "aerodynamic", "drag", "stability",
+                    "center of mass", "center of lift", "center of pressure",
+                    "strut", "fuel tank", "booster", "rocket", "asparagus"
+                }
+            },
+            new SkillDefinitions.Skill
+            {
+                Id = "delta_v_budget",
+                Title = "Delta-v Budget",
+                Content = "Delta-v budgeting principles.",
+                Keywords = new[]
+                {
+                    "delta-v", "deltav", "delta v", "dv", "budget",
+                    "fuel", "enough fuel", "how much fuel",
+                    "reach", "get to", "travel to", "fly to",
+                    "mun", "minmus", "duna", "eve", "jool", "moho", "eeloo",
+                    "dres", "laythe", "tylo", "vall", "pol", "bop",
+                    "map", "mission plan", "round trip"
+                }
+            },
+            new SkillDefinitions.Skill
+            {
+                Id = "contracts_guide",
+                Title = "Contracts Guide",
+                Content = "Contract types and strategies.",
+                Keywords = new[]
+                {
+                    "contract", "contracts", "mission", "missions", "objective", "objectives",
+                    "gather scientific data", "gather science", "science data",
+                    "explore", "world first", "world-first",
+                    "test part", "test a part", "part test",
+                    "rescue", "rescue kerbal", "stranded",
+                    "satellite", "position a satellite", "specific orbit",
+                    "survey", "waypoint",
+                    "tourism", "tourist", "tourists",
+                    "accept", "deadline", "reward", "reputation"
+                }
+            }
+        };
+
+        [SetUp]
+        public void SetUp()
+        {
+            SkillDefinitions.SetSkillsForTesting(TestSkills);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            SkillDefinitions.ReloadSkills();
+        }
+
         // ── SkillSelector.SelectSkills ──
 
         [Test]
@@ -84,7 +162,6 @@ namespace Kerpilot.Tests
         [Test]
         public void SelectSkills_ReturnsAtMostTwo()
         {
-            // A message that could match all three skills
             var result = SkillSelector.SelectSkills(
                 "I need to design a rocket with enough delta-v for a Hohmann transfer to Duna");
             Assert.IsTrue(result.Count <= 2);
@@ -133,6 +210,57 @@ namespace Kerpilot.Tests
             var skills = SkillSelector.SelectSkills("How do I do a Hohmann transfer?");
             var result = SkillSelector.ComposeSystemPrompt("Base.", skills);
             Assert.IsTrue(result.Contains("### Orbital Mechanics"));
+        }
+
+        // ── ParseSkillFile ──
+
+        [Test]
+        public void ParseSkillFile_ValidFrontmatter_ExtractsAllFields()
+        {
+            string md = "---\nid: test_skill\ntitle: Test Skill\nkeywords: alpha, beta, gamma\n---\nBody content here.";
+            var skill = SkillDefinitions.ParseSkillFile(md);
+            Assert.AreEqual("test_skill", skill.Id);
+            Assert.AreEqual("Test Skill", skill.Title);
+            Assert.AreEqual(3, skill.Keywords.Length);
+            Assert.AreEqual("alpha", skill.Keywords[0]);
+            Assert.AreEqual("beta", skill.Keywords[1]);
+            Assert.AreEqual("gamma", skill.Keywords[2]);
+            Assert.AreEqual("Body content here.", skill.Content);
+        }
+
+        [Test]
+        public void ParseSkillFile_MissingFrontmatter_ReturnsEmptyId()
+        {
+            var skill = SkillDefinitions.ParseSkillFile("Just plain text, no frontmatter.");
+            Assert.IsTrue(string.IsNullOrEmpty(skill.Id));
+        }
+
+        [Test]
+        public void ParseSkillFile_WindowsLineEndings_WorksCorrectly()
+        {
+            string md = "---\r\nid: win\r\ntitle: Win\r\nkeywords: a, b\r\n---\r\nContent.";
+            var skill = SkillDefinitions.ParseSkillFile(md);
+            Assert.AreEqual("win", skill.Id);
+            Assert.AreEqual("Win", skill.Title);
+            Assert.AreEqual(2, skill.Keywords.Length);
+            Assert.AreEqual("Content.", skill.Content);
+        }
+
+        [Test]
+        public void ParseSkillFile_MultilineContent_PreservesNewlines()
+        {
+            string md = "---\nid: multi\ntitle: Multi\nkeywords: x\n---\nLine 1\n\nLine 3";
+            var skill = SkillDefinitions.ParseSkillFile(md);
+            Assert.IsTrue(skill.Content.Contains("\n"));
+            Assert.IsTrue(skill.Content.Contains("Line 1"));
+            Assert.IsTrue(skill.Content.Contains("Line 3"));
+        }
+
+        [Test]
+        public void ParseSkillFile_EmptyInput_ReturnsEmptySkill()
+        {
+            var skill = SkillDefinitions.ParseSkillFile("");
+            Assert.IsTrue(string.IsNullOrEmpty(skill.Id));
         }
 
         // ── Integration with LlmClient ──
