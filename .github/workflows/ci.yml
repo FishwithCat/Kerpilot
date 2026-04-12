@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mono-complete
 
-      - name: Cache KSP reference assemblies
+      - name: Restore cached KSP reference assemblies
         id: cache-libs
         uses: actions/cache@v4
         with:
@@ -34,12 +34,15 @@ jobs:
           key: ksp-libs-${{ hashFiles('Kerpilot.csproj') }}
 
       - name: Check reference assemblies
-        if: steps.cache-libs.outputs.cache-hit != 'true'
         run: |
-          echo "::error::KSP reference assemblies not found in cache."
-          echo "Run 'scripts/create-stubs.sh' locally and commit libs/managed/ to populate the cache."
-          echo "See CONTRIBUTING.md for details."
-          exit 1
+          if ls libs/managed/*.dll 1>/dev/null 2>&1; then
+            echo "Found KSP reference assemblies in libs/managed/"
+            ls libs/managed/
+          else
+            echo "::error::KSP reference assemblies not found (no cache hit and no libs/managed/ in repo)."
+            echo "Run 'scripts/create-stubs.sh' locally and commit libs/managed/ to seed the cache."
+            exit 1
+          fi
 
       - name: Build
         run: dotnet build -c Release -p:KSPRoot=${{ github.workspace }}/libs

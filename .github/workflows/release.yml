@@ -35,10 +35,13 @@ jobs:
           key: ksp-libs-${{ hashFiles('Kerpilot.csproj') }}
 
       - name: Check reference assemblies
-        if: steps.cache-libs.outputs.cache-hit != 'true'
         run: |
-          echo "::error::KSP reference assemblies not found. Cannot build release."
-          exit 1
+          if ls libs/managed/*.dll 1>/dev/null 2>&1; then
+            echo "Found KSP reference assemblies"
+          else
+            echo "::error::KSP reference assemblies not found. Cannot build release."
+            exit 1
+          fi
 
       - name: Extract version from tag
         id: version
