@@ -121,7 +121,7 @@ The project uses GitHub Actions for continuous integration and releases.
 | **CI** | Push to `main` / PRs | Build + run tests |
 | **Release** | Push `v*` tag | Build, package zip, create GitHub Release |
 
-**CI setup (one-time):** CI requires KSP reference assemblies in `libs/managed/`. Run `./scripts/create-stubs.sh` locally to copy the needed DLLs, then commit them to the repo. Once cached by GitHub Actions, the DLLs can be removed from the repo — subsequent CI runs pull from cache.
+KSP reference assemblies are committed in `libs/managed/` so CI works out of the box. To update them (e.g. after a KSP version change), run `./scripts/create-stubs.sh` and commit the updated DLLs.
 
 **Creating a release:**
 
