@@ -28,18 +28,18 @@ namespace Kerpilot
         public static readonly Color PanelDark = HexColor("161B22");
         public static readonly Color HeaderColor = HexColor("161B22");
         public static readonly Color InputBackground = HexColor("0D1117");
-        public static readonly Color AccentBlue = HexColor("5B6EF5");
+        public static readonly Color AccentBlue = HexColor("59DBBF");
         public static readonly Color TextLight = HexColor("E0E0E0");
         public static readonly Color TextMuted = HexColor("8B949E");
         // Terminal-specific colors
-        public static readonly Color PromptColor = HexColor("39D353");
-        public static readonly Color UserTextColor = HexColor("39D353");
+        public static readonly Color PromptColor = HexColor("59DBBF");
+        public static readonly Color UserTextColor = HexColor("59DBBF");
         public static readonly Color AiTextColor = HexColor("E6EDF3");
-        public static readonly Color ToolColor = HexColor("D29922");
+        public static readonly Color ToolColor = HexColor("F5912E");
         // Rich-text hex strings for <color> tags (derived from above)
-        public const string UserTextHex = "#39D353";
+        public const string UserTextHex = "#59DBBF";
         public const string AiTextHex = "#E6EDF3";
-        public const string ToolHex = "#D29922";
+        public const string ToolHex = "#F5912E";
 
         // Font — use KSP's own font for sharp rendering
         private static Font _appFont;

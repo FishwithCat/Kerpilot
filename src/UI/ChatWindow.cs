@@ -31,6 +31,9 @@ namespace Kerpilot
         private bool _isStreaming;
         private bool _scrollPending;
         private Coroutine _thinkingAnim;
+        private Coroutine _streamingCoroutine;
+        private string _lastUserInput;
+        private bool _streamingCancelled;
 
         public bool IsVisible => _canvasObj != null && _canvasObj.activeSelf;
 
@@ -41,18 +44,9 @@ namespace Kerpilot
             BuildUI();
 
             if (_conversationHistory.Count == 0)
-            {
                 AppendToLog(FormatAiLine("kerpilot ready. type a message to begin."));
-            }
             else
-            {
-                foreach (var msg in _conversationHistory)
-                {
-                    if (msg.Role == MessageRole.Tool || (msg.Role == MessageRole.Assistant && msg.ToolCalls != null))
-                        continue;
-                    AppendToLog(FormatMessageLine(msg));
-                }
-            }
+                RebuildLogFromHistory();
             FlushLog();
 
             Hide();
@@ -125,6 +119,17 @@ namespace Kerpilot
         private void RemoveInputLock()
         {
             InputLockManager.RemoveControlLock(InputLockId);
+        }
+
+        private void RebuildLogFromHistory()
+        {
+            _logBuilder.Clear();
+            foreach (var msg in _conversationHistory)
+            {
+                if (msg.Role == MessageRole.Tool || (msg.Role == MessageRole.Assistant && msg.ToolCalls != null))
+                    continue;
+                AppendToLog(FormatMessageLine(msg));
+            }
         }
 
         private void ClearChat()

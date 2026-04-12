@@ -10,6 +10,7 @@ namespace Kerpilot
         private IEnumerator StreamLlmResponse()
         {
             _isStreaming = true;
+            _streamingCancelled = false;
             _inputField.interactable = false;
 
             StartThinkingAnimation();
@@ -65,7 +66,8 @@ namespace Kerpilot
                             hasStreamLine = true;
                         }
                         latestText = error;
-                    }
+                    },
+                    isCancelled: () => _streamingCancelled
                 );
 
                 if (pendingToolCalls != null)
@@ -123,6 +125,7 @@ namespace Kerpilot
 
             FlushLog();
             _isStreaming = false;
+            _streamingCoroutine = null;
             _inputField.interactable = true;
             _coroutineHost.StartCoroutine(ScrollToBottom());
         }

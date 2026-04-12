@@ -31,7 +31,8 @@ namespace Kerpilot
             Action<string> onToken,
             Action<string> onComplete,
             Action<List<ToolCall>> onToolCalls,
-            Action<string> onError)
+            Action<string> onError,
+            Func<bool> isCancelled = null)
         {
             if (!settings.IsConfigured)
             {
@@ -75,6 +76,13 @@ namespace Kerpilot
                 else if (streamHandler.ConsumeNewDataFlag())
                 {
                     lastActivityTime = now;
+                }
+
+                if (isCancelled != null && isCancelled())
+                {
+                    request.Abort();
+                    request.Dispose();
+                    yield break;
                 }
 
                 if (now - lastActivityTime > inactivityTimeout)

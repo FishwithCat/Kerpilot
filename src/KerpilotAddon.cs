@@ -28,6 +28,9 @@ namespace Kerpilot
         {
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.K))
                 ToggleWindow();
+
+            if (_chatWindow != null && _chatWindow.IsVisible)
+                _chatWindow.HandleKeyInput();
         }
 
         private void SyncToolbarButtonOff()
@@ -96,57 +99,57 @@ namespace Kerpilot
 
         private static Texture2D CreateToolbarIcon()
         {
-            // Generate a simple 38x38 icon with "K" look
+            // Cartoonish bold K: teal bar + orange arms, pill strokes, transparent bg
             int size = 38;
             var tex = new Texture2D(size, size, TextureFormat.ARGB32, false);
-            var accent = UIStyleConstants.AccentBlue;
-            var bg = new Color(accent.r, accent.g, accent.b, 0.9f);
 
-            // Fill with accent color rounded
+            var teal   = new Color(0.35f, 0.86f, 0.75f);
+            var orange = new Color(0.96f, 0.57f, 0.18f);
+            var clear  = new Color(0, 0, 0, 0);
+
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    int radius = 6;
-                    int cx = -1, cy = -1;
-                    if (x < radius && y < radius) { cx = radius; cy = radius; }
-                    else if (x >= size - radius && y < radius) { cx = size - radius - 1; cy = radius; }
-                    else if (x < radius && y >= size - radius) { cx = radius; cy = size - radius - 1; }
-                    else if (x >= size - radius && y >= size - radius) { cx = size - radius - 1; cy = size - radius - 1; }
+                    float px = x + 0.5f, py = y + 0.5f;
 
-                    if (cx >= 0)
-                    {
-                        float dist = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-                        float alpha = Mathf.Clamp01(radius - dist + 0.5f);
-                        tex.SetPixel(x, y, new Color(bg.r, bg.g, bg.b, bg.a * alpha));
-                    }
-                    else
-                    {
-                        tex.SetPixel(x, y, bg);
-                    }
+                    float aBar = Mathf.Clamp01(3.5f - DistToSeg(px, py, 13f, 9f, 13f, 29f) + 0.5f);
+                    float aUp  = Mathf.Clamp01(3.2f - DistToSeg(px, py, 16f, 19f, 28f, 29f) + 0.5f);
+                    float aDn  = Mathf.Clamp01(3.2f - DistToSeg(px, py, 16f, 19f, 28f, 9f) + 0.5f);
+
+                    Color c = clear;
+                    c = AlphaBlend(c, teal, aBar);
+                    c = AlphaBlend(c, orange, aUp);
+                    c = AlphaBlend(c, orange, aDn);
+
+                    tex.SetPixel(x, y, c);
                 }
             }
 
-            // Draw a simple "K" letter (pixel art style)
-            Color white = Color.white;
-            int ox = 12, oy = 8; // offset
-            // Vertical bar of K
-            for (int y = oy; y < oy + 22; y++)
-                for (int x = ox; x < ox + 3; x++)
-                    tex.SetPixel(x, y, white);
-            // Upper diagonal of K
-            for (int i = 0; i < 11; i++)
-                for (int t = 0; t < 3; t++)
-                    if (ox + 3 + i + t < size && oy + 11 + i < size)
-                        tex.SetPixel(ox + 3 + i + t, oy + 11 + i, white);
-            // Lower diagonal of K
-            for (int i = 0; i < 11; i++)
-                for (int t = 0; t < 3; t++)
-                    if (ox + 3 + i + t < size && oy + 11 - i >= 0)
-                        tex.SetPixel(ox + 3 + i + t, oy + 11 - i, white);
-
             tex.Apply();
             return tex;
+        }
+
+        private static float DistToSeg(float px, float py, float ax, float ay, float bx, float by)
+        {
+            float dx = bx - ax, dy = by - ay;
+            float len2 = dx * dx + dy * dy;
+            float t = len2 > 0 ? Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / len2) : 0f;
+            float cx = ax + t * dx, cy = ay + t * dy;
+            float ex = px - cx, ey = py - cy;
+            return Mathf.Sqrt(ex * ex + ey * ey);
+        }
+
+        private static Color AlphaBlend(Color dst, Color src, float srcA)
+        {
+            if (srcA <= 0f) return dst;
+            float outA = srcA + dst.a * (1f - srcA);
+            if (outA <= 0f) return new Color(0, 0, 0, 0);
+            return new Color(
+                (src.r * srcA + dst.r * dst.a * (1f - srcA)) / outA,
+                (src.g * srcA + dst.g * dst.a * (1f - srcA)) / outA,
+                (src.b * srcA + dst.b * dst.a * (1f - srcA)) / outA,
+                outA);
         }
     }
 }

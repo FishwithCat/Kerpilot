@@ -21,6 +21,50 @@ namespace Kerpilot
             }
         }
 
+        /// <summary>
+        /// Called from KerpilotAddon.Update() each frame when the window is visible.
+        /// Handles Ctrl+C (abort streaming) and Up arrow (recall last input).
+        /// </summary>
+        public void HandleKeyInput()
+        {
+            if (Input.GetKeyDown(KeyCode.C) &&
+                (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
+            {
+                if (_isStreaming) AbortStreaming();
+                return;
+            }
+
+            if (Input.GetKeyDown(KeyCode.UpArrow) && !_isStreaming &&
+                _lastUserInput != null && _inputField != null &&
+                _inputField.isFocused && string.IsNullOrEmpty(_inputField.text))
+            {
+                _inputField.text = _lastUserInput;
+                FocusInput();
+            }
+        }
+
+        private void AbortStreaming()
+        {
+            _streamingCancelled = true;
+
+            if (_streamingCoroutine != null)
+            {
+                _coroutineHost.StopCoroutine(_streamingCoroutine);
+                _streamingCoroutine = null;
+            }
+            StopThinkingAnimation();
+            _scrollPending = false;
+
+            RebuildLogFromHistory();
+            AppendToLog(FormatAiLine("[interrupted]"));
+            FlushLog();
+
+            _isStreaming = false;
+            _inputField.interactable = true;
+            _coroutineHost.StartCoroutine(ScrollToBottom());
+            FocusInput();
+        }
+
         private void OnSendClicked()
         {
             if (_isStreaming) return;
@@ -28,6 +72,7 @@ namespace Kerpilot
             string text = _inputField.text.Trim();
             if (string.IsNullOrEmpty(text)) return;
 
+            _lastUserInput = text;
             _inputField.text = "";
             _inputField.ActivateInputField();
 
@@ -49,7 +94,7 @@ namespace Kerpilot
             var userMsg = new ChatMessage(MessageSender.User, text);
             _conversationHistory.Add(userMsg);
             AddMessage(userMsg);
-            _coroutineHost.StartCoroutine(StreamLlmResponse());
+            _streamingCoroutine = _coroutineHost.StartCoroutine(StreamLlmResponse());
         }
     }
 }

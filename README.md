@@ -28,10 +28,20 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 - Settings panel to configure API endpoint, API key, and model
 - Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
+- `Ctrl+C` to interrupt an in-progress AI response
+- Press `Up` arrow in an empty input field to recall your last message
 - Type `clear` in the chat to reset conversation history
 - Draggable window
 - Input lock prevents chat keystrokes from triggering vessel controls
 - Available in Space Center, Flight, Map View, and VAB/SPH scenes (vessel tools work in both flight and editor)
+
+## Limitations
+
+Kerpilot is an AI chat assistant that provides information and guidance — it does **not** directly control the game. The following features are out of scope:
+
+- **Rocket autopilot / flight control** — Kerpilot cannot execute maneuvers, hold attitude, or fly your vessel. For automated flight control, use [MechJeb2](https://github.com/MuMech/MechJeb2).
+- **Rocket assembly** — Kerpilot cannot place or modify parts in the VAB/SPH. It can advise on rocket design, but you build it yourself.
+- **Contract activation** — Kerpilot cannot accept or decline contracts. It can show you available contracts and explain their requirements.
 
 ## Requirements
 
