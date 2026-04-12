@@ -9,34 +9,19 @@ namespace Kerpilot
         {
             if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
             {
-                // Shift+Enter inserts a newline; plain Enter sends the message
+                bool enterPressed = Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter);
+
+                if (!enterPressed)
+                    return; // pasted newlines — keep them in the input field
+
                 if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
-                {
-                    ResizeInputField();
-                    return;
-                }
-                // Strip the newline and send
+                    return; // Shift+Enter — insert newline
+
+                // Plain Enter — strip the trailing newline and send
                 _inputField.text = text.Replace("\n", "").Replace("\r", "");
                 OnSendClicked();
                 return;
             }
-
-            ResizeInputField();
-        }
-
-        private void ResizeInputField()
-        {
-            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
-            float maxH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMaxHeight);
-            // 2*inputPadV from BuildInlineInput
-            float padding = UIStyleConstants.Scaled(2 * 2);
-
-            float preferred = _inputField.textComponent.preferredHeight + padding;
-            float h = Mathf.Clamp(preferred, minH, maxH);
-
-            if (Mathf.Approximately(h, _inputElement.preferredHeight))
-                return;
-            _inputElement.preferredHeight = h;
         }
 
         /// <summary>
@@ -92,7 +77,6 @@ namespace Kerpilot
 
             _lastUserInput = text;
             _inputField.text = "";
-            ResizeInputField();
             _inputField.ActivateInputField();
 
             if (text.Equals("clear", System.StringComparison.OrdinalIgnoreCase))

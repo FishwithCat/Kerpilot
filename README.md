@@ -8,6 +8,10 @@
 
 A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
 
+## Demo
+
+<video src="resource/Screen_record.mov" controls width="600"></video>
+
 ## Features
 
 - Terminal-style dark-themed chat interface

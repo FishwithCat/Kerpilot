@@ -18,7 +18,6 @@ namespace Kerpilot
         private GameObject _inputRow;
         private ScrollRect _scrollRect;
         private InputField _inputField;
-        private LayoutElement _inputElement;
         private Transform _contentTransform;
         private RectTransform _contentRectTransform;
         private MonoBehaviour _coroutineHost;

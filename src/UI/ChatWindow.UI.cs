@@ -243,10 +243,9 @@ namespace Kerpilot
             var inputObj = CreateObj("InputField", _inputRow.transform);
             var inputBg = inputObj.AddComponent<Image>();
             inputBg.color = new Color(0, 0, 0, 0); // fully transparent
-            _inputElement = inputObj.AddComponent<LayoutElement>();
-            _inputElement.flexibleWidth = 1f;
-            _inputElement.minHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
-            _inputElement.preferredHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
+            var inputLayout = inputObj.AddComponent<LayoutElement>();
+            inputLayout.flexibleWidth = 1f;
+            inputLayout.minHeight = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
 
             int inputPadH = UIStyleConstants.ScaledInt(2);
             int inputPadV = UIStyleConstants.ScaledInt(2);
@@ -274,6 +273,11 @@ namespace Kerpilot
             _inputField.caretColor = UIStyleConstants.AiTextColor;
             _inputField.selectionColor = new Color(0.35f, 0.43f, 0.76f, 0.4f);
             _inputField.onValueChanged.AddListener(OnInputValueChanged);
+
+            var autoResize = inputObj.AddComponent<InputFieldAutoResize>();
+            autoResize.Setup(
+                UIStyleConstants.Scaled(UIStyleConstants.InputFieldMaxHeight),
+                UIStyleConstants.Scaled(2 * inputPadV));
 
             // Lock game controls when input is focused
             var trigger = inputObj.AddComponent<EventTrigger>();
