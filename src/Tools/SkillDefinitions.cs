@@ -11,8 +11,8 @@ namespace Kerpilot
         {
             public string Id;
             public string Title;
+            public string Description;
             public string Content;
-            public string[] Keywords;
         }
 
         private static Skill[] _cachedSkills;
@@ -70,15 +70,8 @@ namespace Kerpilot
                     case "title":
                         skill.Title = value;
                         break;
-                    case "keywords":
-                        var keywords = new List<string>();
-                        foreach (string kw in value.Split(','))
-                        {
-                            string trimmed = kw.Trim();
-                            if (trimmed.Length > 0)
-                                keywords.Add(trimmed);
-                        }
-                        skill.Keywords = keywords.ToArray();
+                    case "description":
+                        skill.Description = value;
                         break;
                 }
             }

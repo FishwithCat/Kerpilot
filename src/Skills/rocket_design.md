@@ -1,7 +1,7 @@
 ---
 id: rocket_design
 title: Rocket Design
-keywords: design, build, stage, staging, twr, thrust, mass ratio, engine, isp, specific impulse, fairing, aerodynamic, drag, stability, center of mass, center of lift, center of pressure, strut, fuel tank, booster, rocket, asparagus
+description: Staging strategy, TWR guidelines per stage, Tsiolkovsky equation, aerodynamic stability, and engine selection
 ---
 
 STAGING: Discard empty mass as early as possible. Each stage should burn out and separate before the next ignites. Lower stages: high thrust, acceptable Isp. Upper stages: high Isp, lower thrust is fine.

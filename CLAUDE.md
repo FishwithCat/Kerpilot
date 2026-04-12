@@ -43,8 +43,9 @@ src/
     ToolDefinitions.cs       # Tool JSON schemas, dispatch to GameDataTools
     GameDataTools.cs         # KSP game data queries, vessel capability analysis (vessel parts, celestial bodies, contracts, Δv analysis, etc.)
     SkillDefinitions.cs      # Skill struct, frontmatter parser, lazy file loader from GameData/Kerpilot/Skills/
-    SkillSelector.cs         # Keyword-based skill matching, dynamic system prompt composition
+    SkillSelector.cs         # Composes system prompt with all skill content; LLM decides relevance
   Skills/                    # Source .md skill files (copied to GameData/Kerpilot/Skills/ at build time)
+    basic_game_control.md    # Keyboard controls, SAS/RCS, time warp, camera, EVA, editor
     orbital_mechanics.md     # Patched conics, burn directions, Hohmann transfers, gravity turns, rendezvous
     rocket_design.md         # Staging, TWR, Tsiolkovsky equation, aerodynamics, engine selection
     delta_v_budget.md        # Δv estimation, budgeting tips, transfer planning
@@ -56,7 +57,7 @@ GameData/Kerpilot/
 tests/
   Kerpilot.Tests.csproj      # NUnit test project (net472, references main project + KSP DLLs)
   ToolAvailabilityTests.cs   # Tests for tool definitions, dispatch, JSON parsing, request body
-  SkillTests.cs              # Tests for skill definitions, keyword selection, prompt composition
+  SkillTests.cs              # Tests for skill definitions, prompt composition, frontmatter parsing
 ```
 
 Key design decisions:
@@ -65,7 +66,7 @@ Key design decisions:
 - Rounded-rect sprites generated at runtime with 9-slice via `SpriteFactory` (used by settings panel input fields)
 - **LLM streaming**: Uses `UnityWebRequest` with a custom `DownloadHandlerScript` subclass (`SseDownloadHandler`) to parse SSE chunks and accumulate tool call fragments. `StreamingUiLoop` coroutine drives a typewriter effect, throttled to ~10fps with change detection to avoid layout rebuild spam. During streaming, `_logBuilder.Length` snapshots enable efficient rollback without string copies. The final `ChatMessage` is created on completion.
 - **Tool calling (function calling)**: Supports OpenAI-compatible tool use. `ToolDefinitions` provides 11 tool JSON schemas and dispatches to `GameDataTools` which queries KSP APIs (`FlightGlobals`, `EditorLogic`, `PartLoader`, `CelestialBody`, `ContractSystem`, `ResearchAndDevelopment`). `ChatWindow.StreamLlmResponse` runs a multi-round coroutine loop (max 5): if the LLM responds with `tool_calls`, tools are executed synchronously and results sent back until the LLM produces a text response. Core vessel tools (`get_vessel_parts`, `get_vessel_delta_v`, `analyze_vessel`) work in both flight and VAB/SPH editor via `TryGetShipParts`/`TryGetDeltaV` helpers that auto-detect the scene; orbit/status/list tools remain flight-only. Per-tool status labels (e.g. "Calculating delta-v...") are shown as plain italic text during execution.
-- **Skills (domain knowledge injection)**: Skills are `.md` files in `src/Skills/` with YAML-like frontmatter (`id`, `title`, `keywords`) and markdown body content, copied to `GameData/Kerpilot/Skills/` at build time. `SkillDefinitions` lazily loads and caches all `*.md` files from the deployed directory on first access, parsing frontmatter via simple string splitting. `SkillSelector` uses keyword matching on the user's latest message to select up to 2 relevant skills and appends their content to the system prompt. This happens in `LlmClient.SendChatRequest` before building the request body. Users can add custom skills by dropping `.md` files in the Skills directory.
+- **Skills (domain knowledge injection)**: Skills are `.md` files in `src/Skills/` with YAML-like frontmatter (`id`, `title`, `description`) and markdown body content, copied to `GameData/Kerpilot/Skills/` at build time. `SkillDefinitions` lazily loads and caches all `*.md` files from the deployed directory on first access, parsing frontmatter via simple string splitting. All skills are included in the system prompt with their descriptions — the LLM decides which knowledge is relevant to the conversation. `SkillSelector.ComposeSystemPrompt` assembles the base prompt plus all skill content. Users can add custom skills by dropping `.md` files in the Skills directory.
 - **Settings persistence**: Uses KSP `ConfigNode` system, saved to `GameData/Kerpilot/PluginData/settings.cfg`. Settings panel swaps in-place with the chat view (same window, no second window).
 - **Input lock**: `InputLockManager.SetControlLock(ControlTypes.All)` via `EventTrigger` callbacks on the InputField (`Select` → lock, `Deselect` → unlock). Must use event callbacks, not per-frame `isFocused` polling (polling has frame-ordering issues causing keystroke leakage). `ControlTypes.All` blocks all controls including camera while typing.
 - **UI rendering sharpness requirements:**
@@ -89,9 +90,8 @@ NUnit test suite (`tests/ToolAvailabilityTests.cs`) verifies tool infrastructure
 - **Request body**: `BuildChatRequestBody` includes tools JSON, serializes tool call history correctly, omits tools field when null
 
 NUnit test suite (`tests/SkillTests.cs`) verifies the skill system:
-- **Skill definitions**: All 4 skills present with non-empty Id, Title, Content, Keywords
-- **Skill selection**: Keyword matching returns correct skills for domain queries, empty for unrelated input, max 2 results
-- **Prompt composition**: Base prompt unchanged when no skills match, skill content appended correctly when matched
+- **Prompt composition**: All 5 skills included in system prompt with titles, descriptions, and content; base prompt unchanged when no skills loaded
+- **Frontmatter parsing**: Extracts id, title, description, content; handles Windows line endings, multiline content, missing/empty input
 
 ## Rules
 

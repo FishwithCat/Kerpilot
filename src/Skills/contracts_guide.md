@@ -1,7 +1,7 @@
 ---
 id: contracts_guide
 title: Contracts Guide
-keywords: contract, contracts, mission, missions, objective, objectives, gather scientific data, gather science, science data, explore, world first, world-first, test part, test a part, part test, rescue, rescue kerbal, stranded, satellite, position a satellite, specific orbit, survey, waypoint, tourism, tourist, tourists, accept, deadline, reward, reputation
+description: Contract types, parameter requirements, cost-effective mission planning, and career economy advice
 ---
 
 KSP contracts have parameters (objectives) that must all be completed. Understanding parameter types helps plan missions.

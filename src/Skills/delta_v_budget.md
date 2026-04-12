@@ -1,7 +1,7 @@
 ---
 id: delta_v_budget
 title: Delta-v Budget
-keywords: delta-v, deltav, delta v, dv, budget, fuel, enough fuel, how much fuel, reach, get to, travel to, fly to, mun, minmus, duna, eve, jool, moho, eeloo, dres, laythe, tylo, vall, pol, bop, map, mission plan, round trip
+description: Delta-v estimation, budgeting tips, transfer planning, and fuel requirements for reaching destinations
 ---
 
 DELTA-V BUDGETING PRINCIPLES:

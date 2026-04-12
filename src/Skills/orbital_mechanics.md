@@ -1,7 +1,7 @@
 ---
 id: orbital_mechanics
 title: Orbital Mechanics
-keywords: orbit, orbital, apoapsis, periapsis, hohmann, transfer, maneuver, node, inclination, prograde, retrograde, normal, antinormal, radial, gravity turn, circularize, rendezvous, dock, docking, aerobrake, aerobraking, soi, sphere of influence, encounter, intercept, burn, phase angle, ascending node, descending node
+description: Patched conics, burn directions, Hohmann transfers, gravity turns, inclination changes, rendezvous, and aerobraking
 ---
 
 KSP uses patched conics — each vessel is on a Keplerian orbit around one body at a time, switching at SOI boundaries.

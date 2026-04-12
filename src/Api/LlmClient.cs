@@ -42,18 +42,7 @@ namespace Kerpilot
             string url = settings.BaseUrl.TrimEnd('/') + "/chat/completions";
             string toolsJson = ToolDefinitions.GetToolsJsonArray();
 
-            // Select relevant skills based on the latest user message
-            string latestUserMessage = "";
-            for (int i = history.Count - 1; i >= 0; i--)
-            {
-                if (history[i].Sender == MessageSender.User)
-                {
-                    latestUserMessage = history[i].Text;
-                    break;
-                }
-            }
-            var selectedSkills = SkillSelector.SelectSkills(latestUserMessage);
-            string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt, selectedSkills);
+            string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt);
 
             string body = JsonHelper.BuildChatRequestBody(history, settings.ModelName, systemPrompt, toolsJson);
 
