@@ -12,6 +12,7 @@ namespace Kerpilot
                 // Shift+Enter inserts a newline; plain Enter sends the message
                 if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
                 {
+                    ResizeInputField();
                     return;
                 }
                 // Strip the newline and send
@@ -19,6 +20,23 @@ namespace Kerpilot
                 OnSendClicked();
                 return;
             }
+
+            ResizeInputField();
+        }
+
+        private void ResizeInputField()
+        {
+            float minH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMinHeight);
+            float maxH = UIStyleConstants.Scaled(UIStyleConstants.InputFieldMaxHeight);
+            // 2*inputPadV from BuildInlineInput
+            float padding = UIStyleConstants.Scaled(2 * 2);
+
+            float preferred = _inputField.textComponent.preferredHeight + padding;
+            float h = Mathf.Clamp(preferred, minH, maxH);
+
+            if (Mathf.Approximately(h, _inputElement.preferredHeight))
+                return;
+            _inputElement.preferredHeight = h;
         }
 
         /// <summary>
@@ -74,6 +92,7 @@ namespace Kerpilot
 
             _lastUserInput = text;
             _inputField.text = "";
+            ResizeInputField();
             _inputField.ActivateInputField();
 
             if (text.Equals("clear", System.StringComparison.OrdinalIgnoreCase))

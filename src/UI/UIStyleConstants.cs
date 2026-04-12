@@ -9,6 +9,7 @@ namespace Kerpilot
         public const float WindowHeight = 560f;
         public const float HeaderHeight = 44f;
         public const float InputFieldMinHeight = 36f;
+        public const float InputFieldMaxHeight = 120f;
 
         // Terminal
         public const float MessageSpacing = 2f;
