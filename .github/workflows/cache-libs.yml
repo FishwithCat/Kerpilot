@@ -1,0 +1,27 @@
+name: Cache KSP Libs
+
+# Manual workflow to upload KSP reference assemblies to the Actions cache.
+# Run this once after generating stubs locally and pushing libs/managed/ to a branch.
+on:
+  workflow_dispatch:
+
+jobs:
+  cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify libs exist
+        run: |
+          if [ ! -d libs/managed ] || [ -z "$(ls libs/managed/*.dll 2>/dev/null)" ]; then
+            echo "::error::No DLLs found in libs/managed/. Run scripts/create-stubs.sh first."
+            exit 1
+          fi
+          echo "Found DLLs:"
+          ls -la libs/managed/
+
+      - name: Cache KSP reference assemblies
+        uses: actions/cache/save@v4
+        with:
+          path: libs/managed
+          key: ksp-libs-${{ hashFiles('Kerpilot.csproj') }}

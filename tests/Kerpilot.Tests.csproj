@@ -8,8 +8,10 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <KSPRoot>/Users/linear/Library/Application Support/Steam/steamapps/common/Kerbal Space Program</KSPRoot>
-    <ManagedDir>$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
+    <KSPRoot Condition="'$(KSPRoot)' == ''">$(KSPROOT)</KSPRoot>
+    <KSPRoot Condition="'$(KSPRoot)' == ''">/Users/linear/Library/Application Support/Steam/steamapps/common/Kerbal Space Program</KSPRoot>
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(KSPRoot)/KSP.app')">$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(KSPRoot)/managed</ManagedDir>
   </PropertyGroup>
 
   <ItemGroup>

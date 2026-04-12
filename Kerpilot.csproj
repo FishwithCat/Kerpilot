@@ -12,7 +12,8 @@
   <PropertyGroup>
     <KSPRoot Condition="'$(KSPRoot)' == ''">$(KSPROOT)</KSPRoot>
     <KSPRoot Condition="'$(KSPRoot)' == ''">$([System.IO.Path]::Combine('$(HOME)', 'Library', 'Application Support', 'Steam', 'steamapps', 'common', 'Kerbal Space Program'))</KSPRoot>
-    <ManagedDir>$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(KSPRoot)/KSP.app')">$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(KSPRoot)/managed</ManagedDir>
     <ModDir>$(ProjectDir)GameData/Kerpilot</ModDir>
     <Version>0.1.0</Version>
   </PropertyGroup>

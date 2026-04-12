@@ -8,7 +8,7 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
 
 ## Features
 
-- Modern dark-themed chat interface with rounded message bubbles
+- Terminal-style dark-themed chat interface
 - LLM integration with streaming responses (token-by-token display)
 - **Game-aware tools** — the AI can query live game data via function calling:
   - Vessel part composition (names, counts, masses, resources)
@@ -25,6 +25,7 @@ A Kerbal Space Program mod that provides an in-game AI chat assistant powered by
   - Rocket Design: staging, TWR guidelines, Tsiolkovsky equation, aerodynamic stability, engine selection
   - Delta-v Budget: complete KSP delta-v map data, mission budgets, safety margins
   - Contracts Guide: contract types (science gathering, part testing, rescue, satellite, survey, tourism), parameter requirements, completion tips
+  - Basic Game Control: keyboard controls, SAS/RCS, time warp, camera, EVA, editor shortcuts
 - Settings panel to configure API endpoint, API key, and model
 - Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
@@ -54,7 +55,7 @@ Kerpilot is an AI chat assistant that provides information and guidance — it d
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/Kerpilot.git
+   git clone https://github.com/FishwithCat/Kerpilot.git
    cd Kerpilot
    ```
 
@@ -74,7 +75,7 @@ Kerpilot is an AI chat assistant that provides information and guidance — it d
 
 ## Install
 
-**From release zip:** Download the latest `Kerpilot-vX.Y.Z.zip` from [Releases](https://github.com/your-username/Kerpilot/releases), extract it into your KSP `GameData/` directory so the structure is `GameData/Kerpilot/Plugins/Kerpilot.dll` and `GameData/Kerpilot/Skills/*.md`.
+**From release zip:** Download the latest `Kerpilot-vX.Y.Z.zip` from [Releases](https://github.com/FishwithCat/Kerpilot/releases), extract it into your KSP `GameData/` directory so the structure is `GameData/Kerpilot/Plugins/Kerpilot.dll` and `GameData/Kerpilot/Skills/*.md`.
 
 **For development:** Symlink the `GameData/Kerpilot` folder into your KSP `GameData` directory:
 
@@ -111,6 +112,26 @@ Run the tests:
 dotnet test tests/Kerpilot.Tests.csproj -c Release
 ```
 
+## CI / Release
+
+The project uses GitHub Actions for continuous integration and releases.
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| **CI** | Push to `main` / PRs | Build + run tests |
+| **Release** | Push `v*` tag | Build, package zip, create GitHub Release |
+
+**CI setup (one-time):** CI requires KSP reference assemblies cached in GitHub Actions. Run `./scripts/create-stubs.sh` locally to copy the needed DLLs to `libs/managed/`, then use the manual **Cache KSP Libs** workflow to upload them.
+
+**Creating a release:**
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Tags containing `-` (e.g. `v0.2.0-beta`) are marked as pre-releases.
+
 ## Contribute
 
 1. Fork the repository and create a feature branch from `main`
@@ -131,7 +152,7 @@ dotnet test tests/Kerpilot.Tests.csproj -c Release
 - All UI is built programmatically with uGUI — no asset bundles or IMGUI
 - Follow the terminal-style interface pattern (single rich-text log, `<color>` tags, `FormatLine()`)
 - New tools go in `src/Tools/` — add a JSON schema in `ToolDefinitions.cs` and implement in `GameDataTools.cs`
-- New skills: add a `.md` file to `GameData/Kerpilot/Skills/` with frontmatter (`id`, `title`, `keywords`) — loaded automatically at runtime
+- New skills: add a `.md` file to `src/Skills/` with frontmatter (`id`, `title`, `description`) — copied to `GameData/Kerpilot/Skills/` at build time, loaded automatically at runtime
 - Add tests for new tools or skills in the `tests/` project
 - Keep the mod lightweight — no external dependencies beyond KSP/Unity assemblies
 

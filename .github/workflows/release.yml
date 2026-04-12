@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Mono
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mono-complete
+
+      - name: Cache KSP reference assemblies
+        id: cache-libs
+        uses: actions/cache@v4
+        with:
+          path: libs/managed
+          key: ksp-libs-${{ hashFiles('Kerpilot.csproj') }}
+
+      - name: Check reference assemblies
+        if: steps.cache-libs.outputs.cache-hit != 'true'
+        run: |
+          echo "::error::KSP reference assemblies not found. Cannot build release."
+          exit 1
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: dotnet build -c Release -p:KSPRoot=${{ github.workspace }}/libs
+        env:
+          FrameworkPathOverride: /usr/lib/mono/4.7.2-api/
+
+      - name: Package
+        run: dotnet msbuild Kerpilot.csproj -t:Package -p:Configuration=Release -p:KSPRoot=${{ github.workspace }}/libs
+        env:
+          FrameworkPathOverride: /usr/lib/mono/4.7.2-api/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Kerpilot-v${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
