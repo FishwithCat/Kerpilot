@@ -30,6 +30,7 @@ namespace Kerpilot
         private static readonly List<ChatMessage> _conversationHistory = new List<ChatMessage>();
         private bool _isStreaming;
         private bool _scrollPending;
+        private Coroutine _thinkingAnim;
 
         public bool IsVisible => _canvasObj != null && _canvasObj.activeSelf;
 

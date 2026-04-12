@@ -12,9 +12,7 @@ namespace Kerpilot
             _isStreaming = true;
             _inputField.interactable = false;
 
-            AppendToLog(FormatToolLine("Thinking..."));
-            FlushLog();
-            _coroutineHost.StartCoroutine(ScrollToBottom());
+            StartThinkingAnimation();
 
             int round = 0;
             const int maxRounds = 5;
@@ -104,8 +102,7 @@ namespace Kerpilot
 
                     yield return null;
 
-                    AppendToLog(FormatToolLine("Thinking..."));
-                    FlushLog();
+                    StartThinkingAnimation();
                     needsMoreRounds = true;
                 }
             }
@@ -132,6 +129,7 @@ namespace Kerpilot
 
         private void RemoveLastLogLine()
         {
+            StopThinkingAnimation();
             int len = _logBuilder.Length;
             for (int i = len - 1; i >= 0; i--)
             {
@@ -142,6 +140,46 @@ namespace Kerpilot
                 }
             }
             _logBuilder.Clear();
+        }
+
+        private void StartThinkingAnimation()
+        {
+            StopThinkingAnimation();
+            string logBase = _logBuilder.ToString();
+            AppendToLog(FormatToolLine("Thinking..."));
+            FlushLog();
+            _coroutineHost.StartCoroutine(ScrollToBottom());
+            _thinkingAnim = _coroutineHost.StartCoroutine(AnimateThinking(logBase));
+        }
+
+        private void StopThinkingAnimation()
+        {
+            if (_thinkingAnim != null)
+            {
+                _coroutineHost.StopCoroutine(_thinkingAnim);
+                _thinkingAnim = null;
+            }
+        }
+
+        private IEnumerator AnimateThinking(string logBase)
+        {
+            string[] frames = new[]
+            {
+                FormatToolLine("Thinking."),
+                FormatToolLine("Thinking.."),
+                FormatToolLine("Thinking...")
+            };
+            int index = 0;
+            var wait = new WaitForSecondsRealtime(0.4f);
+            string prefix = logBase.Length > 0 ? logBase + "\n" : "";
+
+            while (true)
+            {
+                yield return wait;
+                index = (index + 1) % frames.Length;
+                if (_logText != null)
+                    _logText.text = prefix + frames[index];
+            }
         }
 
         private IEnumerator StreamingUiLoop(System.Func<string> getLatest, System.Func<bool> isActive)
