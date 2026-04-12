@@ -4,6 +4,8 @@
 
 # Kerpilot
 
+[![CI](https://github.com/FishwithCat/Kerpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/FishwithCat/Kerpilot/actions/workflows/ci.yml)
+
 A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
 
 ## Features
