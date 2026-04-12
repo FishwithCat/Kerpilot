@@ -45,11 +45,7 @@ jobs:
           fi
 
       - name: Build
-        run: dotnet build -c Release -p:KSPRoot=${{ github.workspace }}/libs
-        env:
-          FrameworkPathOverride: /usr/lib/mono/4.7.2-api/
+        run: dotnet build -c Release -p:KSPRoot=${{ github.workspace }}/libs -p:FrameworkPathOverride=/usr/lib/mono/4.7.2-api/
 
       - name: Test
-        run: dotnet test tests/Kerpilot.Tests.csproj -c Release --no-build
-        env:
-          FrameworkPathOverride: /usr/lib/mono/4.7.2-api/
+        run: dotnet test tests/Kerpilot.Tests.csproj -c Release --no-build -p:FrameworkPathOverride=/usr/lib/mono/4.7.2-api/
