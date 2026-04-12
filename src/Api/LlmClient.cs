@@ -20,7 +20,7 @@ namespace Kerpilot
             "may differ from defaults. If a tool is available to retrieve the data, you must call it before " +
             "referencing any numbers in your response.\n\n" +
             "When the player asks you to design or recommend a rocket configuration, ALWAYS call " +
-            "get_active_contracts first to check their current mission objectives. Design the most " +
+            "get_contracts first to check their current mission objectives. Design the most " +
             "economical build that satisfies those contract requirements — minimize part count, cost, " +
             "and complexity while ensuring sufficient delta-v and TWR. Only suggest capabilities " +
             "beyond the contract requirements if the player explicitly asks for them.";

@@ -62,7 +62,6 @@ CAREER MODE ECONOMY:
 - Do NOT over-engineer: if the contract only needs orbit, don't build for landing; if it only needs flyby, don't build for orbit insertion
 
 TOOLS:
-- Use get_active_contracts to check current objectives and their completion state
-- Use get_offered_contracts to browse available contracts before accepting
+- Use get_contracts to check both active objectives (with completion state) and available contracts before accepting
 - Parameters show 'Complete' or 'Incomplete' state — track progress in-flight
 - Combine multiple contracts for the same destination in one mission to save resources

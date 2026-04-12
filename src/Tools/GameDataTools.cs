@@ -360,7 +360,7 @@ namespace Kerpilot
             return sb.ToString();
         }
 
-        public static string GetActiveContracts()
+        public static string GetContracts()
         {
             var contractSystem = Contracts.ContractSystem.Instance;
             if (contractSystem == null)
@@ -368,10 +368,10 @@ namespace Kerpilot
 
             var contracts = contractSystem.Contracts;
             if (contracts == null || contracts.Count == 0)
-                return "{\"contracts\":[]}";
+                return "{\"active\":[],\"offered\":[]}";
 
             var sb = new StringBuilder();
-            sb.Append("{\"contracts\":[");
+            sb.Append("{\"active\":[");
 
             bool first = true;
             foreach (var contract in contracts)
@@ -409,24 +409,9 @@ namespace Kerpilot
                 sb.Append("]}");
             }
 
-            sb.Append("]}");
-            return sb.ToString();
-        }
+            sb.Append("],\"offered\":[");
 
-        public static string GetOfferedContracts()
-        {
-            var contractSystem = Contracts.ContractSystem.Instance;
-            if (contractSystem == null)
-                return "{\"error\":\"Contract system not available. It may not be loaded yet.\"}";
-
-            var contracts = contractSystem.Contracts;
-            if (contracts == null || contracts.Count == 0)
-                return "{\"contracts\":[]}";
-
-            var sb = new StringBuilder();
-            sb.Append("{\"contracts\":[");
-
-            bool first = true;
+            first = true;
             foreach (var contract in contracts)
             {
                 if (contract.ContractState != Contracts.Contract.State.Offered)

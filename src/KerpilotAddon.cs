@@ -29,7 +29,10 @@ namespace Kerpilot
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.K))
                 ToggleWindow();
             else if (Input.GetKeyDown(KeyCode.Escape) && _chatWindow != null && _chatWindow.IsVisible)
+            {
                 ToggleWindow();
+                Input.ResetInputAxes();
+            }
         }
 
         private void SyncToolbarButtonOff()

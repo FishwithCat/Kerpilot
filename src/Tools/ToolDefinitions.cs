@@ -21,13 +21,8 @@ namespace Kerpilot
                 "\"parameters\":{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Mun, Duna, Eve, Jool)\"}},\"required\":[\"body_name\"]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_active_contracts\"," +
-                "\"description\":\"Get all currently active (accepted) contracts with their objectives, completion state, and rewards. Use when the player asks about their current missions or accepted contracts.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_offered_contracts\"," +
-                "\"description\":\"Get all currently offered (available) contracts that the player can accept, with their objectives, rewards, deadlines, and prestige level. Use when the player asks what contracts are available, what missions they can take, or wants to choose a new contract.\"," +
+                "\"name\":\"get_contracts\"," +
+                "\"description\":\"Get all contracts: both active (accepted) contracts with objectives and completion state, and offered (available) contracts with deadlines and prestige. Use when the player asks about contracts, missions, or what they can accept.\"," +
                 "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
             "}}," +
             "{\"type\":\"function\",\"function\":{" +
@@ -81,8 +76,7 @@ namespace Kerpilot
                 case "get_vessel_parts": return "Analysing vessel...";
                 case "get_part_info": return "Looking up part info...";
                 case "get_celestial_body": return "Querying celestial body...";
-                case "get_active_contracts": return "Checking contracts...";
-                case "get_offered_contracts": return "Checking available contracts...";
+                case "get_contracts": return "Checking contracts...";
                 case "get_vessel_delta_v": return "Calculating delta-v...";
                 case "get_vessel_orbit": return "Reading orbit data...";
                 case "get_vessel_status": return "Reading flight status...";
@@ -111,11 +105,8 @@ namespace Kerpilot
                         string bodyName = JsonHelper.ExtractJsonStringValue(argumentsJson, "body_name");
                         return GameDataTools.GetCelestialBody(bodyName);
 
-                    case "get_active_contracts":
-                        return GameDataTools.GetActiveContracts();
-
-                    case "get_offered_contracts":
-                        return GameDataTools.GetOfferedContracts();
+                    case "get_contracts":
+                        return GameDataTools.GetContracts();
 
                     case "get_vessel_delta_v":
                         return GameDataTools.GetVesselDeltaV();
