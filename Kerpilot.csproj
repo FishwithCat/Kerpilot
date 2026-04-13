@@ -85,12 +85,15 @@
       <PackageDir>$(ProjectDir)dist</PackageDir>
       <ZipFile>$(PackageDir)/Kerpilot-v$(Version).zip</ZipFile>
     </PropertyGroup>
+    <ItemGroup>
+      <SkillFiles Include="$(ProjectDir)src/Skills/*.md" />
+    </ItemGroup>
     <RemoveDir Directories="$(PackageDir)/staging" />
     <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Plugins" />
-    <Copy SourceFiles="$(ModDir)/Plugins/Kerpilot.dll"
+    <Copy SourceFiles="$(OutputPath)Kerpilot.dll"
           DestinationFolder="$(PackageDir)/staging/Kerpilot/Plugins/" />
     <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Skills" />
-    <Copy SourceFiles="$(ModDir)/Skills/*.md"
+    <Copy SourceFiles="@(SkillFiles)"
           DestinationFolder="$(PackageDir)/staging/Kerpilot/Skills/" />
     <ZipDirectory SourceDirectory="$(PackageDir)/staging"
                   DestinationFile="$(ZipFile)"
