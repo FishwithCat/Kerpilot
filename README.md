@@ -8,9 +8,7 @@
 
 A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
 
-## Demo
-
-https://github.com/user-attachments/assets/5dccb244-eced-4d55-9c8b-d1881dd4e844
+https://github.com/user-attachments/assets/804ac6b0-b704-4026-be4b-892ca6a546af
 
 ## Features
 
