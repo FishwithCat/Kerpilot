@@ -175,7 +175,6 @@ namespace Kerpilot
         private readonly StringBuilder _pendingTokens = new StringBuilder();
         private readonly StringBuilder _rawResponse = new StringBuilder();
         private readonly List<ToolCallAccumulator> _toolCalls = new List<ToolCallAccumulator>();
-        private bool _hasToolCalls;
         private bool _hasNewData;
 
         private class ToolCallAccumulator
@@ -185,7 +184,7 @@ namespace Kerpilot
             public readonly StringBuilder Arguments = new StringBuilder();
         }
 
-        public bool HasToolCalls => _hasToolCalls;
+        public bool HasToolCalls => _toolCalls.Count > 0;
 
         /// <summary>Returns true if any data was received since the last call. Resets the flag.</summary>
         public bool ConsumeNewDataFlag()
@@ -247,43 +246,33 @@ namespace Kerpilot
                 string payload = trimmed.Substring(6);
                 if (payload == "[DONE]") continue;
 
-                // Check for tool calls in this delta
-                if (JsonHelper.HasToolCalls(payload))
+                var delta = JsonHelper.ParseStreamDelta(payload);
+                if (delta == null) continue;
+
+                if (delta.HasToolCalls)
                 {
-                    _hasToolCalls = true;
-                    ProcessToolCallDelta(payload);
+                    ProcessToolCallDelta(delta);
                     continue;
                 }
 
-                string content = JsonHelper.ExtractJsonStringValue(payload, "content");
-                if (content != null)
-                    _pendingTokens.Append(content);
+                if (delta.Content != null)
+                    _pendingTokens.Append(delta.Content);
             }
         }
 
-        private void ProcessToolCallDelta(string payload)
+        private void ProcessToolCallDelta(StreamDelta delta)
         {
-            int index = JsonHelper.ExtractToolCallIndex(payload);
-
-            // Ensure we have enough slots
-            while (_toolCalls.Count <= index)
+            while (_toolCalls.Count <= delta.ToolCallIndex)
                 _toolCalls.Add(new ToolCallAccumulator());
 
-            var tc = _toolCalls[index];
+            var tc = _toolCalls[delta.ToolCallIndex];
 
-            // ID and name arrive in the first chunk for this tool call
-            string id = JsonHelper.ExtractToolCallId(payload);
-            if (id != null)
-                tc.Id = id;
-
-            string name = JsonHelper.ExtractToolCallFunctionName(payload);
-            if (name != null)
-                tc.Name = name;
-
-            // Arguments are streamed incrementally
-            string argFragment = JsonHelper.ExtractToolCallArguments(payload);
-            if (argFragment != null)
-                tc.Arguments.Append(argFragment);
+            if (delta.ToolCallId != null)
+                tc.Id = delta.ToolCallId;
+            if (delta.ToolCallFunctionName != null)
+                tc.Name = delta.ToolCallFunctionName;
+            if (delta.ToolCallArguments != null)
+                tc.Arguments.Append(delta.ToolCallArguments);
         }
 
         /// <summary>

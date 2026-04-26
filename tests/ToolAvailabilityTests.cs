@@ -104,70 +104,76 @@ namespace Kerpilot.Tests
             Assert.That(JsonHelper.ExtractJsonStringValue(null, "key"), Is.Null);
         }
 
-        // ── HasToolCalls detection ──
+        // ── ParseStreamDelta ──
 
         [Test]
-        public void HasToolCalls_WithArray_ReturnsTrue()
+        public void ParseStreamDelta_ContentChunk_ExtractsContent()
         {
-            string json = "{\"delta\":{\"tool_calls\":[{\"index\":0}]}}";
-            Assert.That(JsonHelper.HasToolCalls(json), Is.True);
+            string json = "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta, Is.Not.Null);
+            Assert.That(delta.Content, Is.EqualTo("Hello"));
+            Assert.That(delta.HasToolCalls, Is.False);
         }
 
         [Test]
-        public void HasToolCalls_WithNull_ReturnsFalse()
+        public void ParseStreamDelta_ToolCallChunk_PopulatesToolFields()
         {
-            string json = "{\"delta\":{\"tool_calls\":null}}";
-            Assert.That(JsonHelper.HasToolCalls(json), Is.False);
+            string json = "{\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":2,\"id\":\"call_abc123\",\"function\":{\"name\":\"get_vessel_parts\",\"arguments\":\"{\\\"part\"}}]}}]}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta.HasToolCalls, Is.True);
+            Assert.That(delta.ToolCallIndex, Is.EqualTo(2));
+            Assert.That(delta.ToolCallId, Is.EqualTo("call_abc123"));
+            Assert.That(delta.ToolCallFunctionName, Is.EqualTo("get_vessel_parts"));
+            Assert.That(delta.ToolCallArguments, Is.EqualTo("{\"part"));
         }
 
         [Test]
-        public void HasToolCalls_NoField_ReturnsFalse()
+        public void ParseStreamDelta_ToolCallsNull_NotDetected()
         {
-            string json = "{\"delta\":{\"content\":\"hello\"}}";
-            Assert.That(JsonHelper.HasToolCalls(json), Is.False);
+            string json = "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\",\"tool_calls\":null}}]}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta.HasToolCalls, Is.False);
+            Assert.That(delta.Content, Is.EqualTo("hi"));
         }
 
         [Test]
-        public void HasToolCalls_NullInput_ReturnsFalse()
+        public void ParseStreamDelta_OpenRouterUsageMetadata_NoContentNoToolCalls()
         {
-            Assert.That(JsonHelper.HasToolCalls(null), Is.False);
-        }
-
-        // ── Tool call SSE parsing ──
-
-        [Test]
-        public void ExtractToolCallIndex_ReturnsIndex()
-        {
-            string json = "{\"delta\":{\"tool_calls\":[{\"index\":2,\"id\":\"call_abc\"}]}}";
-            Assert.That(JsonHelper.ExtractToolCallIndex(json), Is.EqualTo(2));
+            // OpenRouter sends a final chunk with usage info and empty choices
+            string json = "{\"id\":\"gen-xyz\",\"provider\":\"Google\",\"model\":\"google/gemini-2.5-pro\",\"object\":\"chat.completion.chunk\",\"created\":1730000000,\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":50,\"total_tokens\":150,\"cost\":0.00123}}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta, Is.Not.Null);
+            Assert.That(delta.Content, Is.Null);
+            Assert.That(delta.HasToolCalls, Is.False);
         }
 
         [Test]
-        public void ExtractToolCallId_ReturnsId()
+        public void ParseStreamDelta_GeminiFinishChunk_NoContent()
         {
-            string json = "{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\"}]}}";
-            Assert.That(JsonHelper.ExtractToolCallId(json), Is.EqualTo("call_abc123"));
+            // Some providers send a finish chunk with empty delta plus usage
+            string json = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"delta\":{}}],\"usage\":{\"prompt_tokens\":50,\"completion_tokens\":20,\"total_tokens\":70}}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta.Content, Is.Null);
+            Assert.That(delta.HasToolCalls, Is.False);
         }
 
         [Test]
-        public void ExtractToolCallFunctionName_ReturnsName()
+        public void ParseStreamDelta_MetadataChunkWithToolCallsKeyword_NotMisdetected()
         {
-            string json = "{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"get_vessel_parts\",\"arguments\":\"\"}}]}}";
-            Assert.That(JsonHelper.ExtractToolCallFunctionName(json), Is.EqualTo("get_vessel_parts"));
+            // A metadata chunk that mentions "tool_calls" outside choices[0].delta
+            // (e.g. as part of a provider's request echo) must not trigger tool-call parsing
+            string json = "{\"id\":\"gen-1\",\"x_request\":{\"tool_calls\":\"enabled\"},\"choices\":[]}";
+            var delta = JsonHelper.ParseStreamDelta(json);
+            Assert.That(delta.HasToolCalls, Is.False);
         }
 
         [Test]
-        public void ExtractToolCallArguments_ReturnsFragment()
+        public void ParseStreamDelta_InvalidJson_ReturnsNull()
         {
-            string json = "{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"get_part_info\",\"arguments\":\"{\\\"part\"}}]}}";
-            Assert.That(JsonHelper.ExtractToolCallArguments(json), Is.EqualTo("{\"part"));
-        }
-
-        [Test]
-        public void ExtractToolCallFunctionName_NoToolCalls_ReturnsNull()
-        {
-            string json = "{\"delta\":{\"content\":\"hello\"}}";
-            Assert.That(JsonHelper.ExtractToolCallFunctionName(json), Is.Null);
+            Assert.That(JsonHelper.ParseStreamDelta("not json"), Is.Null);
+            Assert.That(JsonHelper.ParseStreamDelta(null), Is.Null);
+            Assert.That(JsonHelper.ParseStreamDelta(""), Is.Null);
         }
 
         // ── ChatMessage tool call model ──

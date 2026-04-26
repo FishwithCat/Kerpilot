@@ -1,8 +1,20 @@
 using System.Collections.Generic;
 using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Kerpilot
 {
+    public class StreamDelta
+    {
+        public string Content;
+        public bool HasToolCalls;
+        public int ToolCallIndex;
+        public string ToolCallId;
+        public string ToolCallFunctionName;
+        public string ToolCallArguments;
+    }
+
     public static class JsonHelper
     {
         public static string EscapeJsonString(string s)
@@ -32,42 +44,41 @@ namespace Kerpilot
         }
 
         /// <summary>
-        /// Extracts a string value for a given key from a JSON object.
-        /// Handles the predictable OpenAI chat completions response format.
-        /// Returns null if the key is not found or the value is null.
+        /// Extracts the first string value matching the given key from a JSON object,
+        /// searching recursively. Returns null if the key is missing or the value is null.
         /// </summary>
         public static string ExtractJsonStringValue(string json, string key)
         {
             if (string.IsNullOrEmpty(json)) return null;
+            JObject root;
+            try { root = JObject.Parse(json); }
+            catch (JsonException) { return null; }
 
-            string searchKey = "\"" + key + "\"";
-            int keyIndex = json.IndexOf(searchKey);
-            if (keyIndex < 0) return null;
-
-            return ExtractJsonStringValueAt(json, keyIndex);
+            var token = root.SelectToken("$.." + key);
+            if (token == null || token.Type == JTokenType.Null) return null;
+            return token.Type == JTokenType.String ? (string)token : token.ToString();
         }
 
         public static string BuildChatRequestBody(List<ChatMessage> history, string model, string systemPrompt, string toolsJson)
         {
-            var sb = new StringBuilder();
-            sb.Append("{\"model\":\"");
-            sb.Append(EscapeJsonString(model));
-            sb.Append("\",\"stream\":true");
+            var root = new JObject
+            {
+                ["model"] = model,
+                ["stream"] = true
+            };
 
             if (!string.IsNullOrEmpty(toolsJson))
+                root["tools"] = JArray.Parse(toolsJson);
+
+            var messages = new JArray
             {
-                sb.Append(",\"tools\":");
-                sb.Append(toolsJson);
-            }
+                new JObject
+                {
+                    ["role"] = "system",
+                    ["content"] = systemPrompt
+                }
+            };
 
-            sb.Append(",\"messages\":[");
-
-            // System message
-            sb.Append("{\"role\":\"system\",\"content\":\"");
-            sb.Append(EscapeJsonString(systemPrompt));
-            sb.Append("\"}");
-
-            // Conversation history (last 20 messages)
             int start = history.Count > 20 ? history.Count - 20 : 0;
             for (int i = start; i < history.Count; i++)
             {
@@ -75,205 +86,87 @@ namespace Kerpilot
 
                 if (msg.Role == MessageRole.Tool)
                 {
-                    sb.Append(",{\"role\":\"tool\",\"tool_call_id\":\"");
-                    sb.Append(EscapeJsonString(msg.ToolCallId));
-                    sb.Append("\",\"content\":\"");
-                    sb.Append(EscapeJsonString(msg.Text));
-                    sb.Append("\"}");
+                    messages.Add(new JObject
+                    {
+                        ["role"] = "tool",
+                        ["tool_call_id"] = msg.ToolCallId,
+                        ["content"] = msg.Text
+                    });
                 }
                 else if (msg.Role == MessageRole.Assistant && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
                 {
-                    sb.Append(",{\"role\":\"assistant\",\"content\":");
-                    if (string.IsNullOrEmpty(msg.Text))
-                        sb.Append("null");
-                    else
+                    var toolCallsArr = new JArray();
+                    foreach (var tc in msg.ToolCalls)
                     {
-                        sb.Append("\"");
-                        sb.Append(EscapeJsonString(msg.Text));
-                        sb.Append("\"");
+                        toolCallsArr.Add(new JObject
+                        {
+                            ["id"] = tc.Id,
+                            ["type"] = "function",
+                            ["function"] = new JObject
+                            {
+                                ["name"] = tc.FunctionName,
+                                ["arguments"] = tc.Arguments
+                            }
+                        });
                     }
-                    sb.Append(",\"tool_calls\":[");
-                    for (int t = 0; t < msg.ToolCalls.Count; t++)
+                    messages.Add(new JObject
                     {
-                        if (t > 0) sb.Append(",");
-                        sb.Append("{\"id\":\"");
-                        sb.Append(EscapeJsonString(msg.ToolCalls[t].Id));
-                        sb.Append("\",\"type\":\"function\",\"function\":{\"name\":\"");
-                        sb.Append(EscapeJsonString(msg.ToolCalls[t].FunctionName));
-                        sb.Append("\",\"arguments\":\"");
-                        sb.Append(EscapeJsonString(msg.ToolCalls[t].Arguments));
-                        sb.Append("\"}}");
-                    }
-                    sb.Append("]}");
+                        ["role"] = "assistant",
+                        ["content"] = string.IsNullOrEmpty(msg.Text) ? JValue.CreateNull() : (JToken)msg.Text,
+                        ["tool_calls"] = toolCallsArr
+                    });
                 }
                 else
                 {
-                    sb.Append(",{\"role\":\"");
-                    sb.Append(msg.Sender == MessageSender.User ? "user" : "assistant");
-                    sb.Append("\",\"content\":\"");
-                    sb.Append(EscapeJsonString(msg.Text));
-                    sb.Append("\"}");
-                }
-            }
-
-            sb.Append("]}");
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Checks if an SSE JSON payload contains tool_calls in the delta.
-        /// </summary>
-        public static bool HasToolCalls(string json)
-        {
-            if (json == null) return false;
-            // Must check for "tool_calls":[  to distinguish from "tool_calls":null
-            // which many APIs include in every delta chunk
-            int idx = json.IndexOf("\"tool_calls\"");
-            if (idx < 0) return false;
-            // Skip past the key, colon, and whitespace to check the value
-            int pos = json.IndexOf(':', idx + 12);
-            if (pos < 0) return false;
-            pos++;
-            while (pos < json.Length && (json[pos] == ' ' || json[pos] == '\t'))
-                pos++;
-            // Must be a non-empty array: "[{" not just "[]"
-            if (pos >= json.Length || json[pos] != '[') return false;
-            pos++;
-            while (pos < json.Length && (json[pos] == ' ' || json[pos] == '\t'))
-                pos++;
-            return pos < json.Length && json[pos] == '{';
-        }
-
-        /// <summary>
-        /// Extracts tool call index from an SSE delta chunk.
-        /// Returns -1 if not found.
-        /// </summary>
-        public static int ExtractToolCallIndex(string json)
-        {
-            // Find "tool_calls":[{"index":N
-            int tcIdx = json.IndexOf("\"tool_calls\"");
-            if (tcIdx < 0) return -1;
-
-            int indexKey = json.IndexOf("\"index\"", tcIdx);
-            if (indexKey < 0) return 0; // default to 0
-
-            int colon = json.IndexOf(':', indexKey + 7);
-            if (colon < 0) return 0;
-
-            int start = colon + 1;
-            while (start < json.Length && json[start] == ' ') start++;
-
-            int result = 0;
-            bool found = false;
-            while (start < json.Length && json[start] >= '0' && json[start] <= '9')
-            {
-                result = result * 10 + (json[start] - '0');
-                found = true;
-                start++;
-            }
-
-            return found ? result : 0;
-        }
-
-        /// <summary>
-        /// Extracts the tool call ID from an SSE delta chunk.
-        /// </summary>
-        public static string ExtractToolCallId(string json)
-        {
-            int tcIdx = json.IndexOf("\"tool_calls\"");
-            if (tcIdx < 0) return null;
-            // Find "id" after tool_calls
-            int idIdx = json.IndexOf("\"id\"", tcIdx);
-            if (idIdx < 0) return null;
-            return ExtractJsonStringValueAt(json, idIdx);
-        }
-
-        /// <summary>
-        /// Extracts the function name from an SSE delta tool_calls chunk.
-        /// </summary>
-        public static string ExtractToolCallFunctionName(string json)
-        {
-            int tcIdx = json.IndexOf("\"tool_calls\"");
-            if (tcIdx < 0) return null;
-            int fnIdx = json.IndexOf("\"function\"", tcIdx);
-            if (fnIdx < 0) return null;
-            int nameIdx = json.IndexOf("\"name\"", fnIdx);
-            if (nameIdx < 0) return null;
-            return ExtractJsonStringValueAt(json, nameIdx);
-        }
-
-        /// <summary>
-        /// Extracts the function arguments fragment from an SSE delta tool_calls chunk.
-        /// </summary>
-        public static string ExtractToolCallArguments(string json)
-        {
-            int tcIdx = json.IndexOf("\"tool_calls\"");
-            if (tcIdx < 0) return null;
-            int fnIdx = json.IndexOf("\"function\"", tcIdx);
-            if (fnIdx < 0) return null;
-            int argIdx = json.IndexOf("\"arguments\"", fnIdx);
-            if (argIdx < 0) return null;
-            return ExtractJsonStringValueAt(json, argIdx);
-        }
-
-        /// <summary>
-        /// Extract a JSON string value starting from a known key position.
-        /// The keyIndex should point to the opening quote of the key.
-        /// </summary>
-        private static string ExtractJsonStringValueAt(string json, int keyIndex)
-        {
-            // Find closing quote of key
-            int keyEnd = json.IndexOf('"', keyIndex + 1);
-            if (keyEnd < 0) return null;
-
-            int colon = json.IndexOf(':', keyEnd + 1);
-            if (colon < 0) return null;
-
-            int valueStart = colon + 1;
-            while (valueStart < json.Length && (json[valueStart] == ' ' || json[valueStart] == '\t'))
-                valueStart++;
-
-            if (valueStart >= json.Length) return null;
-
-            // Check for null
-            if (valueStart + 4 <= json.Length && json.Substring(valueStart, 4) == "null")
-                return null;
-
-            if (json[valueStart] != '"') return null;
-
-            var sb = new StringBuilder();
-            int i = valueStart + 1;
-            while (i < json.Length)
-            {
-                char c = json[i];
-                if (c == '\\' && i + 1 < json.Length)
-                {
-                    char next = json[i + 1];
-                    switch (next)
+                    messages.Add(new JObject
                     {
-                        case '"': sb.Append('"'); break;
-                        case '\\': sb.Append('\\'); break;
-                        case '/': sb.Append('/'); break;
-                        case 'n': sb.Append('\n'); break;
-                        case 'r': sb.Append('\r'); break;
-                        case 't': sb.Append('\t'); break;
-                        case 'b': sb.Append('\b'); break;
-                        case 'f': sb.Append('\f'); break;
-                        default: sb.Append(next); break;
-                    }
-                    i += 2;
-                }
-                else if (c == '"')
-                {
-                    break;
-                }
-                else
-                {
-                    sb.Append(c);
-                    i++;
+                        ["role"] = msg.Sender == MessageSender.User ? "user" : "assistant",
+                        ["content"] = msg.Text
+                    });
                 }
             }
-            return sb.ToString();
+
+            root["messages"] = messages;
+            return root.ToString(Formatting.None);
+        }
+
+        /// <summary>
+        /// Parses an SSE delta payload into a StreamDelta. Looks specifically at
+        /// choices[0].delta to avoid false matches in metadata-only chunks (usage,
+        /// cost, provider info) that some providers (OpenRouter, Gemini) emit before
+        /// or alongside content. Returns null if the payload isn't a valid JSON object.
+        /// </summary>
+        public static StreamDelta ParseStreamDelta(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            JObject root;
+            try { root = JObject.Parse(json); }
+            catch (JsonException) { return null; }
+
+            var result = new StreamDelta();
+            var choices = root["choices"] as JArray;
+            if (choices == null || choices.Count == 0) return result;
+            var delta = choices[0]["delta"];
+            if (delta == null) return result;
+
+            var contentToken = delta["content"];
+            if (contentToken != null && contentToken.Type == JTokenType.String)
+                result.Content = (string)contentToken;
+
+            var toolCalls = delta["tool_calls"] as JArray;
+            if (toolCalls == null || toolCalls.Count == 0) return result;
+
+            result.HasToolCalls = true;
+            var tc = toolCalls[0];
+            result.ToolCallIndex = (int?)tc["index"] ?? 0;
+            result.ToolCallId = (string)tc["id"];
+            var fn = tc["function"];
+            if (fn != null)
+            {
+                result.ToolCallFunctionName = (string)fn["name"];
+                result.ToolCallArguments = (string)fn["arguments"];
+            }
+            return result;
         }
     }
 }
