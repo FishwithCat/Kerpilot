@@ -25,12 +25,15 @@ namespace Kerpilot
             "and complexity while ensuring sufficient delta-v and TWR. Only suggest capabilities " +
             "beyond the contract requirements if the player explicitly asks for them.";
 
+        private const int AnthropicMaxTokens = 4096;
+        private const string AnthropicVersion = "2023-06-01";
+
         public static IEnumerator SendChatRequest(
             List<ChatMessage> history,
             KerpilotSettings settings,
             Action<string> onToken,
             Action<string> onComplete,
-            Action<List<ToolCall>> onToolCalls,
+            Action<List<ToolCall>, List<string>> onToolCalls,
             Action<string> onError,
             Func<bool> isCancelled = null)
         {
@@ -40,20 +43,50 @@ namespace Kerpilot
                 yield break;
             }
 
-            string url = settings.BaseUrl.TrimEnd('/') + "/chat/completions";
-            string toolsJson = ToolDefinitions.GetToolsJsonArray();
-
+            ChatProvider provider = ChatProviderDetector.Detect(settings.BaseUrl);
             string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt);
 
-            string body = JsonHelper.BuildChatRequestBody(history, settings.ModelName, systemPrompt, toolsJson);
+            string url;
+            string body;
+            Func<string, StreamDelta> parser;
+            if (provider == ChatProvider.Anthropic)
+            {
+                url = BuildAnthropicUrl(settings.BaseUrl);
+                body = JsonHelper.BuildAnthropicRequestBody(
+                    history, settings.ModelName, systemPrompt,
+                    ToolDefinitions.GetToolsJsonArrayAnthropic(), AnthropicMaxTokens);
+                parser = JsonHelper.ParseAnthropicStreamEvent;
+            }
+            else
+            {
+                url = settings.BaseUrl.TrimEnd('/') + "/chat/completions";
+                body = JsonHelper.BuildChatRequestBody(
+                    history, settings.ModelName, systemPrompt,
+                    ToolDefinitions.GetToolsJsonArray());
+                parser = JsonHelper.ParseStreamDelta;
+            }
 
             var request = new UnityWebRequest(url, "POST");
             byte[] bodyBytes = Encoding.UTF8.GetBytes(body);
             request.uploadHandler = new UploadHandlerRaw(bodyBytes);
+            // KSP's bundled Unity HTTP stack rejects many modern TLS chains
+            // ("Unable to complete SSL connection"). Trust depends on the
+            // user-supplied Base URL + API key; degrade chain validation
+            // rather than block all requests.
+            request.certificateHandler = new PermissiveCertificateHandler();
+            request.disposeCertificateHandlerOnDispose = true;
             request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("Authorization", "Bearer " + settings.ApiKey);
+            if (provider == ChatProvider.Anthropic)
+            {
+                request.SetRequestHeader("x-api-key", settings.ApiKey);
+                request.SetRequestHeader("anthropic-version", AnthropicVersion);
+            }
+            else
+            {
+                request.SetRequestHeader("Authorization", "Bearer " + settings.ApiKey);
+            }
 
-            var streamHandler = new SseDownloadHandler();
+            var streamHandler = new SseDownloadHandler(parser);
             request.downloadHandler = streamHandler;
 
             request.SendWebRequest();
@@ -108,7 +141,6 @@ namespace Kerpilot
 
             if (timedOut && accumulated.Length > 0)
             {
-                // Timed out but we have partial content — use it
                 onComplete?.Invoke(accumulated.ToString());
             }
             else if (timedOut)
@@ -127,7 +159,15 @@ namespace Kerpilot
                 else if (request.isNetworkError)
                     errorMsg = "Network error: " + request.error;
                 else
-                    errorMsg = "API error (" + request.responseCode + "): " + request.error;
+                {
+                    string raw = streamHandler.GetRawResponse();
+                    string apiError = !string.IsNullOrEmpty(raw)
+                        ? JsonHelper.ExtractJsonStringValue(raw, "message")
+                        : null;
+                    errorMsg = apiError != null
+                        ? "API error (" + request.responseCode + "): " + apiError
+                        : "API error (" + request.responseCode + "): " + request.error;
+                }
 
                 if (accumulated.Length > 0)
                     onComplete?.Invoke(accumulated.ToString());
@@ -136,14 +176,13 @@ namespace Kerpilot
             }
             else if (streamHandler.HasToolCalls)
             {
-                onToolCalls?.Invoke(streamHandler.GetToolCalls());
+                onToolCalls?.Invoke(streamHandler.GetToolCalls(), streamHandler.GetPreservedContentBlocks());
             }
             else
             {
                 string result = accumulated.ToString();
                 if (string.IsNullOrEmpty(result))
                 {
-                    // Try to extract an error message from the raw response
                     string raw = streamHandler.GetRawResponse();
                     string apiError = !string.IsNullOrEmpty(raw)
                         ? JsonHelper.ExtractJsonStringValue(raw, "message")
@@ -163,18 +202,47 @@ namespace Kerpilot
 
             request.Dispose();
         }
+
+        /// <summary>
+        /// Resolves the Anthropic Messages endpoint from a base URL.
+        /// Accepts forms like "https://api.anthropic.com", ".../v1", or
+        /// ".../anthropic" (proxy-style, e.g. DeepSeek).
+        /// </summary>
+        public static string BuildAnthropicUrl(string baseUrl)
+        {
+            string b = (baseUrl ?? "").TrimEnd('/');
+            if (b.EndsWith("/v1") || b.EndsWith("/v1beta"))
+                return b + "/messages";
+            return b + "/v1/messages";
+        }
     }
 
     /// <summary>
-    /// Custom DownloadHandler that processes SSE (Server-Sent Events) streaming responses.
-    /// Parses "data: {...}" lines and extracts delta content tokens.
+    /// Always-trust certificate handler. KSP 1.12.5's bundled Unity HTTP stack
+    /// often fails the TLS handshake against modern endpoints (api.openai.com,
+    /// api.anthropic.com, etc.) because of outdated root CAs / cipher support
+    /// in the embedded SSL implementation. Bypassing chain validation is the
+    /// pragmatic fix for an LLM client where the user supplies the URL + key.
+    /// </summary>
+    public class PermissiveCertificateHandler : CertificateHandler
+    {
+        protected override bool ValidateCertificate(byte[] certificateData) => true;
+    }
+
+    /// <summary>
+    /// SSE download handler shared by OpenAI and Anthropic providers. The parser
+    /// delegate decides how to extract content / tool-call fragments from each
+    /// "data: ..." payload. Tool call slots are keyed by parser-supplied index
+    /// (OpenAI: tool call index in the array; Anthropic: content block index).
     /// </summary>
     public class SseDownloadHandler : DownloadHandlerScript
     {
         private readonly StringBuilder _buffer = new StringBuilder();
         private readonly StringBuilder _pendingTokens = new StringBuilder();
         private readonly StringBuilder _rawResponse = new StringBuilder();
-        private readonly List<ToolCallAccumulator> _toolCalls = new List<ToolCallAccumulator>();
+        private readonly SortedDictionary<int, ToolCallAccumulator> _toolCalls = new SortedDictionary<int, ToolCallAccumulator>();
+        private readonly SortedDictionary<int, PreservedBlockAccumulator> _preservedBlocks = new SortedDictionary<int, PreservedBlockAccumulator>();
+        private readonly Func<string, StreamDelta> _parser;
         private bool _hasNewData;
 
         private class ToolCallAccumulator
@@ -184,9 +252,21 @@ namespace Kerpilot
             public readonly StringBuilder Arguments = new StringBuilder();
         }
 
+        private class PreservedBlockAccumulator
+        {
+            public string Type;                                 // "thinking" | "redacted_thinking"
+            public readonly StringBuilder Text = new StringBuilder();
+            public string Signature;
+            public string Data;
+        }
+
+        public SseDownloadHandler(Func<string, StreamDelta> parser)
+        {
+            _parser = parser ?? JsonHelper.ParseStreamDelta;
+        }
+
         public bool HasToolCalls => _toolCalls.Count > 0;
 
-        /// <summary>Returns true if any data was received since the last call. Resets the flag.</summary>
         public bool ConsumeNewDataFlag()
         {
             bool val = _hasNewData;
@@ -194,14 +274,44 @@ namespace Kerpilot
             return val;
         }
 
-        /// <summary>Returns the raw response text (for error diagnostics when no SSE content was parsed).</summary>
         public string GetRawResponse() => _rawResponse.ToString();
 
         public List<ToolCall> GetToolCalls()
         {
             var result = new List<ToolCall>();
-            foreach (var tc in _toolCalls)
-                result.Add(new ToolCall(tc.Id, tc.Name, tc.Arguments.ToString()));
+            foreach (var kv in _toolCalls)
+                result.Add(new ToolCall(kv.Value.Id, kv.Value.Name, kv.Value.Arguments.ToString()));
+            return result;
+        }
+
+        /// <summary>
+        /// Returns serialized provider-opaque content blocks that must be passed
+        /// back unchanged in the next request — Anthropic thinking + signature
+        /// (and redacted_thinking) blocks. Returns null when there are none.
+        /// </summary>
+        public List<string> GetPreservedContentBlocks()
+        {
+            if (_preservedBlocks.Count == 0) return null;
+            var result = new List<string>(_preservedBlocks.Count);
+            foreach (var kv in _preservedBlocks)
+            {
+                var b = kv.Value;
+                if (b.Type == "redacted_thinking")
+                {
+                    result.Add("{\"type\":\"redacted_thinking\",\"data\":\"" +
+                        JsonHelper.EscapeJsonString(b.Data ?? "") + "\"}");
+                }
+                else
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("{\"type\":\"thinking\",\"thinking\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(b.Text.ToString()));
+                    sb.Append("\",\"signature\":\"");
+                    sb.Append(JsonHelper.EscapeJsonString(b.Signature ?? ""));
+                    sb.Append("\"}");
+                    result.Add(sb.ToString());
+                }
+            }
             return result;
         }
 
@@ -231,7 +341,6 @@ namespace Kerpilot
             int lastNewline = text.LastIndexOf('\n');
             if (lastNewline < 0) return;
 
-            // Process complete lines, keep incomplete data in buffer
             string complete = text.Substring(0, lastNewline + 1);
             _buffer.Clear();
             if (lastNewline + 1 < text.Length)
@@ -246,12 +355,17 @@ namespace Kerpilot
                 string payload = trimmed.Substring(6);
                 if (payload == "[DONE]") continue;
 
-                var delta = JsonHelper.ParseStreamDelta(payload);
+                var delta = _parser(payload);
                 if (delta == null) continue;
+
+                if (delta.HasPreservedBlock)
+                    ProcessPreservedBlockDelta(delta);
 
                 if (delta.HasToolCalls)
                 {
                     ProcessToolCallDelta(delta);
+                    if (delta.Content != null)
+                        _pendingTokens.Append(delta.Content);
                     continue;
                 }
 
@@ -262,10 +376,11 @@ namespace Kerpilot
 
         private void ProcessToolCallDelta(StreamDelta delta)
         {
-            while (_toolCalls.Count <= delta.ToolCallIndex)
-                _toolCalls.Add(new ToolCallAccumulator());
-
-            var tc = _toolCalls[delta.ToolCallIndex];
+            if (!_toolCalls.TryGetValue(delta.ToolCallIndex, out var tc))
+            {
+                tc = new ToolCallAccumulator();
+                _toolCalls[delta.ToolCallIndex] = tc;
+            }
 
             if (delta.ToolCallId != null)
                 tc.Id = delta.ToolCallId;
@@ -275,10 +390,24 @@ namespace Kerpilot
                 tc.Arguments.Append(delta.ToolCallArguments);
         }
 
-        /// <summary>
-        /// Flush any remaining data in the buffer that didn't end with a newline.
-        /// Must be called after the request completes to avoid losing the last SSE line.
-        /// </summary>
+        private void ProcessPreservedBlockDelta(StreamDelta delta)
+        {
+            if (!_preservedBlocks.TryGetValue(delta.PreservedBlockIndex, out var b))
+            {
+                b = new PreservedBlockAccumulator();
+                _preservedBlocks[delta.PreservedBlockIndex] = b;
+            }
+
+            if (delta.PreservedBlockType != null)
+                b.Type = delta.PreservedBlockType;
+            if (delta.PreservedBlockTextFragment != null)
+                b.Text.Append(delta.PreservedBlockTextFragment);
+            if (delta.PreservedBlockSignature != null)
+                b.Signature = delta.PreservedBlockSignature;
+            if (delta.PreservedBlockData != null)
+                b.Data = delta.PreservedBlockData;
+        }
+
         public void FlushBuffer()
         {
             if (_buffer.Length > 0)

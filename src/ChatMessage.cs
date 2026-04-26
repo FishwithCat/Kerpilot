@@ -40,6 +40,15 @@ namespace Kerpilot
         public List<ToolCall> ToolCalls { get; }
         public string ToolCallId { get; }
 
+        /// <summary>
+        /// Provider-opaque content-block JSON fragments that must be passed back
+        /// unchanged in the next request. Used for Anthropic extended-thinking
+        /// blocks (type "thinking" with signature, or "redacted_thinking") that
+        /// accompany a tool_use turn — Anthropic 400s if these are stripped
+        /// before the tool_result is sent.
+        /// </summary>
+        public List<string> PreservedContentBlocks { get; }
+
         public ChatMessage(MessageSender sender, string text)
         {
             Sender = sender;
@@ -48,24 +57,25 @@ namespace Kerpilot
             Timestamp = DateTime.Now;
         }
 
-        private ChatMessage(MessageRole role, string text, List<ToolCall> toolCalls, string toolCallId)
+        private ChatMessage(MessageRole role, string text, List<ToolCall> toolCalls, string toolCallId, List<string> preservedBlocks)
         {
             Sender = role == MessageRole.User ? MessageSender.User : MessageSender.AI;
             Role = role;
             Text = text;
             ToolCalls = toolCalls;
             ToolCallId = toolCallId;
+            PreservedContentBlocks = preservedBlocks;
             Timestamp = DateTime.Now;
         }
 
-        public static ChatMessage CreateAssistantToolCall(List<ToolCall> toolCalls, string content = null)
+        public static ChatMessage CreateAssistantToolCall(List<ToolCall> toolCalls, string content = null, List<string> preservedBlocks = null)
         {
-            return new ChatMessage(MessageRole.Assistant, content, toolCalls, null);
+            return new ChatMessage(MessageRole.Assistant, content, toolCalls, null, preservedBlocks);
         }
 
         public static ChatMessage CreateToolResult(string toolCallId, string content)
         {
-            return new ChatMessage(MessageRole.Tool, content, null, toolCallId);
+            return new ChatMessage(MessageRole.Tool, content, null, toolCallId, null);
         }
     }
 }

@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/FishwithCat/Kerpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/FishwithCat/Kerpilot/actions/workflows/ci.yml)
 
-A Kerbal Space Program mod that provides an in-game AI chat assistant powered by any OpenAI-compatible LLM API.
+A Kerbal Space Program mod that provides an in-game AI chat assistant. Works with **OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek**, and any other OpenAI- or Anthropic-compatible LLM API. The provider is auto-detected from your Base URL.
 
 https://github.com/user-attachments/assets/804ac6b0-b704-4026-be4b-892ca6a546af
 
@@ -31,7 +31,9 @@ https://github.com/user-attachments/assets/804ac6b0-b704-4026-be4b-892ca6a546af
   - Contracts Guide: contract types (science gathering, part testing, rescue, satellite, survey, tourism), parameter requirements, completion tips
   - Basic Game Control: keyboard controls, SAS/RCS, time warp, camera, EVA, editor shortcuts
 - Settings panel to configure API endpoint, API key, and model
-- Supports any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
+- **Multi-provider support** — Kerpilot auto-detects the protocol from the Base URL:
+  - **OpenAI / OpenRouter / DeepSeek / Gemini (OpenAI endpoint) / local models** — any OpenAI Chat Completions–compatible API
+  - **Anthropic (native)** — `api.anthropic.com` and Anthropic-compatible proxies (e.g. `*/anthropic` paths)
 - Toolbar button and `Ctrl+K` keyboard shortcut to toggle the window
 - `Ctrl+C` to interrupt an in-progress AI response
 - Press `Up` arrow in an empty input field to recall your last message
@@ -102,9 +104,22 @@ Output: `dist/Kerpilot-vX.Y.Z.zip` — users extract this into their KSP `GameDa
 1. Launch KSP and enter Space Center or Flight
 2. Click the **K** toolbar button or press **Ctrl+K** to open the chat window
 3. Click the **gear icon** (⚙) in the header to open Settings
-4. Enter your API endpoint (default: `https://api.openai.com/v1`), API key, and model name
+4. Enter your API endpoint, API key, and model name (see provider examples below)
 5. Click **Save**, then **Back** to return to chat
 6. Type a message and press **Send** or **Enter** — the AI will respond with streamed tokens
+
+### Provider examples
+
+| Provider | Base URL | Example model |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4` |
+| Anthropic | `https://api.anthropic.com` | `claude-3-5-sonnet-latest`, `claude-3-7-sonnet-latest` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet`, `google/gemini-2.5-pro` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-pro`, `gemini-2.5-flash` |
+| DeepSeek (OpenAI) | `https://api.deepseek.com/v1` | `deepseek-chat`, `deepseek-reasoner` |
+| DeepSeek (Anthropic) | `https://api.deepseek.com/anthropic` | `deepseek-chat` |
+
+The provider protocol is auto-detected: any URL containing `api.anthropic.com` or ending in `/anthropic` uses the Anthropic Messages API (`x-api-key` header, `/v1/messages` endpoint, native tool blocks). Everything else uses the OpenAI Chat Completions API.
 
 ## Tests
 

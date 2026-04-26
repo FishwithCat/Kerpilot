@@ -11,6 +11,15 @@ namespace Kerpilot
         public string ToolCallId;
         public string ToolCallFunctionName;
         public string ToolCallArguments;
+
+        // Anthropic extended-thinking content blocks. The block index is shared
+        // with HasToolCalls/Content (Anthropic uses one content_block index space).
+        public bool HasPreservedBlock;
+        public int PreservedBlockIndex;
+        public string PreservedBlockType;          // "thinking" or "redacted_thinking"
+        public string PreservedBlockTextFragment;  // for thinking_delta
+        public string PreservedBlockSignature;     // for signature_delta
+        public string PreservedBlockData;          // for redacted_thinking start
     }
 
     public static class JsonHelper
@@ -58,6 +67,127 @@ namespace Kerpilot
             int colon = json.IndexOf(':', keyIndex + searchKey.Length);
             if (colon < 0) return null;
             return ExtractStringValueAt(json, colon, json.Length);
+        }
+
+        /// <summary>
+        /// Builds an Anthropic Messages API request body.
+        /// System prompt is a top-level field (not a message). Tool results are user
+        /// messages with content-block arrays. Assistant messages with tool_calls are
+        /// emitted as content-block arrays mixing text and tool_use blocks. The
+        /// internally-stored Arguments JSON string is inlined as the tool_use input
+        /// object (raw JSON).
+        /// </summary>
+        public static string BuildAnthropicRequestBody(
+            List<ChatMessage> history, string model, string systemPrompt,
+            string anthropicToolsJson, int maxTokens)
+        {
+            var sb = new StringBuilder();
+            sb.Append('{');
+            sb.Append("\"model\":\"").Append(EscapeJsonString(model)).Append("\",");
+            sb.Append("\"max_tokens\":").Append(maxTokens).Append(',');
+            sb.Append("\"stream\":true");
+            if (!string.IsNullOrEmpty(systemPrompt))
+            {
+                sb.Append(",\"system\":\"").Append(EscapeJsonString(systemPrompt)).Append('"');
+            }
+            if (!string.IsNullOrEmpty(anthropicToolsJson))
+            {
+                sb.Append(",\"tools\":").Append(anthropicToolsJson);
+            }
+            sb.Append(",\"messages\":[");
+
+            int start = history.Count > 20 ? history.Count - 20 : 0;
+            bool firstMsg = true;
+            int i = start;
+            while (i < history.Count)
+            {
+                var msg = history[i];
+
+                if (msg.Role == MessageRole.Tool)
+                {
+                    if (!firstMsg) sb.Append(',');
+                    firstMsg = false;
+                    sb.Append("{\"role\":\"user\",\"content\":[");
+                    bool firstResult = true;
+                    while (i < history.Count && history[i].Role == MessageRole.Tool)
+                    {
+                        if (!firstResult) sb.Append(',');
+                        firstResult = false;
+                        sb.Append("{\"type\":\"tool_result\",\"tool_use_id\":\"");
+                        sb.Append(EscapeJsonString(history[i].ToolCallId));
+                        sb.Append("\",\"content\":\"");
+                        sb.Append(EscapeJsonString(history[i].Text));
+                        sb.Append("\"}");
+                        i++;
+                    }
+                    sb.Append("]}");
+                    continue;
+                }
+
+                if (!firstMsg) sb.Append(',');
+                firstMsg = false;
+
+                if (msg.Role == MessageRole.Assistant && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
+                {
+                    sb.Append("{\"role\":\"assistant\",\"content\":[");
+                    bool firstBlock = true;
+
+                    // Preserved blocks (e.g. Anthropic thinking + signature) must be
+                    // re-emitted unchanged before text/tool_use, or the API rejects
+                    // the request when extended thinking is active.
+                    if (msg.PreservedContentBlocks != null)
+                    {
+                        for (int p = 0; p < msg.PreservedContentBlocks.Count; p++)
+                        {
+                            string raw = msg.PreservedContentBlocks[p];
+                            if (string.IsNullOrEmpty(raw)) continue;
+                            if (!firstBlock) sb.Append(',');
+                            firstBlock = false;
+                            sb.Append(raw);
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(msg.Text))
+                    {
+                        if (!firstBlock) sb.Append(',');
+                        firstBlock = false;
+                        sb.Append("{\"type\":\"text\",\"text\":\"");
+                        sb.Append(EscapeJsonString(msg.Text));
+                        sb.Append("\"}");
+                    }
+                    for (int t = 0; t < msg.ToolCalls.Count; t++)
+                    {
+                        if (!firstBlock) sb.Append(',');
+                        firstBlock = false;
+                        var tc = msg.ToolCalls[t];
+                        sb.Append("{\"type\":\"tool_use\",\"id\":\"");
+                        sb.Append(EscapeJsonString(tc.Id));
+                        sb.Append("\",\"name\":\"");
+                        sb.Append(EscapeJsonString(tc.FunctionName));
+                        sb.Append("\",\"input\":");
+                        string args = tc.Arguments;
+                        if (string.IsNullOrEmpty(args) || string.IsNullOrEmpty(args.Trim()))
+                            sb.Append("{}");
+                        else
+                            sb.Append(args);
+                        sb.Append('}');
+                    }
+                    sb.Append("]}");
+                }
+                else
+                {
+                    sb.Append("{\"role\":\"");
+                    sb.Append(msg.Sender == MessageSender.User ? "user" : "assistant");
+                    sb.Append("\",\"content\":\"");
+                    sb.Append(EscapeJsonString(msg.Text));
+                    sb.Append("\"}");
+                }
+
+                i++;
+            }
+
+            sb.Append("]}");
+            return sb.ToString();
         }
 
         public static string BuildChatRequestBody(List<ChatMessage> history, string model, string systemPrompt, string toolsJson)
@@ -198,6 +328,134 @@ namespace Kerpilot
                 int argsColon = FindKeyAtTopLevel(json, fnStart + 1, fnEnd, "arguments");
                 if (argsColon >= 0)
                     result.ToolCallArguments = ExtractStringValueAt(json, argsColon, fnEnd);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Parses a single Anthropic SSE event payload (the JSON after "data: ").
+        /// Routes by top-level "type" field:
+        ///   content_block_start with content_block.type=tool_use → emits ToolCallId/Name + index
+        ///   content_block_delta with delta.type=text_delta        → emits Content
+        ///   content_block_delta with delta.type=input_json_delta  → emits ToolCallArguments + index
+        /// All other event types (message_start, content_block_stop, message_delta,
+        /// message_stop, ping, error) yield an empty StreamDelta. The "index" used
+        /// is the Anthropic content block index, which the caller maps to a tool
+        /// accumulator slot.
+        /// </summary>
+        public static StreamDelta ParseAnthropicStreamEvent(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            var result = new StreamDelta();
+
+            int rootStart = json.IndexOf('{');
+            if (rootStart < 0) return result;
+            int rootEnd = FindMatchingClose(json, rootStart);
+            if (rootEnd < 0) return result;
+
+            int typeColon = FindKeyAtTopLevel(json, rootStart + 1, rootEnd, "type");
+            if (typeColon < 0) return result;
+            string eventType = ExtractStringValueAt(json, typeColon, rootEnd);
+            if (eventType == null) return result;
+
+            int idxColon = FindKeyAtTopLevel(json, rootStart + 1, rootEnd, "index");
+            int blockIndex = idxColon >= 0 ? ExtractIntValueAt(json, idxColon, rootEnd, 0) : 0;
+
+            if (eventType == "content_block_start")
+            {
+                int cbStart, cbEnd;
+                if (!FindObjectValue(json, rootStart + 1, rootEnd, "content_block", out cbStart, out cbEnd))
+                    return result;
+                int cbTypeColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "type");
+                if (cbTypeColon < 0) return result;
+                string cbType = ExtractStringValueAt(json, cbTypeColon, cbEnd);
+
+                if (cbType == "tool_use")
+                {
+                    result.HasToolCalls = true;
+                    result.ToolCallIndex = blockIndex;
+                    int idColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "id");
+                    if (idColon >= 0) result.ToolCallId = ExtractStringValueAt(json, idColon, cbEnd);
+                    int nameColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "name");
+                    if (nameColon >= 0) result.ToolCallFunctionName = ExtractStringValueAt(json, nameColon, cbEnd);
+                    return result;
+                }
+
+                if (cbType == "thinking")
+                {
+                    result.HasPreservedBlock = true;
+                    result.PreservedBlockIndex = blockIndex;
+                    result.PreservedBlockType = "thinking";
+                    int thinkColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "thinking");
+                    if (thinkColon >= 0)
+                        result.PreservedBlockTextFragment = ExtractStringValueAt(json, thinkColon, cbEnd);
+                    int sigColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "signature");
+                    if (sigColon >= 0)
+                        result.PreservedBlockSignature = ExtractStringValueAt(json, sigColon, cbEnd);
+                    return result;
+                }
+
+                if (cbType == "redacted_thinking")
+                {
+                    result.HasPreservedBlock = true;
+                    result.PreservedBlockIndex = blockIndex;
+                    result.PreservedBlockType = "redacted_thinking";
+                    int dataColon = FindKeyAtTopLevel(json, cbStart + 1, cbEnd, "data");
+                    if (dataColon >= 0)
+                        result.PreservedBlockData = ExtractStringValueAt(json, dataColon, cbEnd);
+                    return result;
+                }
+
+                return result;
+            }
+
+            if (eventType == "content_block_delta")
+            {
+                int dStart, dEnd;
+                if (!FindObjectValue(json, rootStart + 1, rootEnd, "delta", out dStart, out dEnd))
+                    return result;
+                int dTypeColon = FindKeyAtTopLevel(json, dStart + 1, dEnd, "type");
+                if (dTypeColon < 0) return result;
+                string dType = ExtractStringValueAt(json, dTypeColon, dEnd);
+
+                if (dType == "text_delta")
+                {
+                    int textColon = FindKeyAtTopLevel(json, dStart + 1, dEnd, "text");
+                    if (textColon >= 0)
+                        result.Content = ExtractStringValueAt(json, textColon, dEnd);
+                }
+                else if (dType == "input_json_delta")
+                {
+                    int pjColon = FindKeyAtTopLevel(json, dStart + 1, dEnd, "partial_json");
+                    if (pjColon >= 0)
+                    {
+                        result.HasToolCalls = true;
+                        result.ToolCallIndex = blockIndex;
+                        result.ToolCallArguments = ExtractStringValueAt(json, pjColon, dEnd);
+                    }
+                }
+                else if (dType == "thinking_delta")
+                {
+                    int textColon = FindKeyAtTopLevel(json, dStart + 1, dEnd, "thinking");
+                    if (textColon >= 0)
+                    {
+                        result.HasPreservedBlock = true;
+                        result.PreservedBlockIndex = blockIndex;
+                        result.PreservedBlockTextFragment = ExtractStringValueAt(json, textColon, dEnd);
+                    }
+                }
+                else if (dType == "signature_delta")
+                {
+                    int sigColon = FindKeyAtTopLevel(json, dStart + 1, dEnd, "signature");
+                    if (sigColon >= 0)
+                    {
+                        result.HasPreservedBlock = true;
+                        result.PreservedBlockIndex = blockIndex;
+                        result.PreservedBlockSignature = ExtractStringValueAt(json, sigColon, dEnd);
+                    }
+                }
+                return result;
             }
 
             return result;

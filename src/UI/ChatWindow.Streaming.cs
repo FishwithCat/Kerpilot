@@ -32,6 +32,7 @@ namespace Kerpilot
                 round++;
                 needsMoreRounds = false;
                 List<ToolCall> pendingToolCalls = null;
+                List<string> pendingPreservedBlocks = null;
 
                 yield return LlmClient.SendChatRequest(
                     _conversationHistory,
@@ -53,9 +54,10 @@ namespace Kerpilot
                         _conversationHistory.Add(new ChatMessage(MessageSender.AI, text));
                         latestText = text;
                     },
-                    onToolCalls: (toolCalls) =>
+                    onToolCalls: (toolCalls, preservedBlocks) =>
                     {
                         pendingToolCalls = toolCalls;
+                        pendingPreservedBlocks = preservedBlocks;
                     },
                     onError: (error) =>
                     {
@@ -76,7 +78,9 @@ namespace Kerpilot
                     bool hasVisibleContent = !string.IsNullOrEmpty(contentBeforeTools);
 
                     _conversationHistory.Add(ChatMessage.CreateAssistantToolCall(
-                        pendingToolCalls, hasVisibleContent ? contentBeforeTools : null));
+                        pendingToolCalls,
+                        hasVisibleContent ? contentBeforeTools : null,
+                        pendingPreservedBlocks));
 
                     if (hasStreamLine)
                     {

@@ -68,15 +68,16 @@ namespace Kerpilot
 
             // API Endpoint
             CreateLabel("API Endpoint", _root.transform, UIStyleConstants.SettingsLabelFontSize, FontStyle.Normal);
-            _baseUrlInput = CreateInputField(_root.transform, "https://api.openai.com/v1");
+            _baseUrlInput = CreateInputField(_root.transform,
+                "OpenAI: https://api.openai.com/v1   |   Anthropic: https://api.anthropic.com   |   OpenRouter: https://openrouter.ai/api/v1   |   Gemini: https://generativelanguage.googleapis.com/v1beta/openai");
 
             // API Key
             CreateLabel("API Key", _root.transform, UIStyleConstants.SettingsLabelFontSize, FontStyle.Normal);
-            _apiKeyInput = CreateInputField(_root.transform, "sk-...", InputField.ContentType.Password);
+            _apiKeyInput = CreateInputField(_root.transform, "sk-... / sk-ant-...", InputField.ContentType.Password);
 
             // Model
             CreateLabel("Model", _root.transform, UIStyleConstants.SettingsLabelFontSize, FontStyle.Normal);
-            _modelInput = CreateInputField(_root.transform, "gpt-4");
+            _modelInput = CreateInputField(_root.transform, "gpt-4 / claude-3-5-sonnet-latest / google/gemini-2.5-pro");
 
             // Status text
             var statusObj = CreateObj("Status", _root.transform);

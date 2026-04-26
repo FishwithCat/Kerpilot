@@ -1,72 +1,115 @@
 using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace Kerpilot
 {
+    public struct ToolSpec
+    {
+        public readonly string Name;
+        public readonly string Description;
+        public readonly string ParametersJson;
+
+        public ToolSpec(string name, string description, string parametersJson)
+        {
+            Name = name;
+            Description = description;
+            ParametersJson = parametersJson;
+        }
+    }
+
     public static class ToolDefinitions
     {
-        private const string ToolsJson =
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_vessel_parts\"," +
-                "\"description\":\"Get the vessel's part list with counts, masses, costs, and onboard resources. Works in both flight and VAB/SPH editor. Use when the player asks about their rocket, ship, or vessel composition.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_part_info\"," +
-                "\"description\":\"Get detailed info for a specific part type: description, mass, cost, category, manufacturer, resource capacities, and engine performance (thrust, Isp vacuum/sea-level, propellants) if the part is an engine. Use when the player asks about a particular part or engine stats.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{\"part_name\":{\"type\":\"string\",\"description\":\"Name of the part (e.g. FL-T400 Fuel Tank, LV-T30 Reliant Engine)\"}},\"required\":[\"part_name\"]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_celestial_body\"," +
-                "\"description\":\"Get parameters of a celestial body: mass, radius, gravity, atmosphere, sphere of influence, and orbital parameters. Use when the player asks about a planet or moon.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Mun, Duna, Eve, Jool)\"}},\"required\":[\"body_name\"]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_contracts\"," +
-                "\"description\":\"Get all contracts: both active (accepted) contracts with objectives and completion state, and offered (available) contracts with deadlines and prestige. Use when the player asks about contracts, missions, or what they can accept.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_vessel_delta_v\"," +
-                "\"description\":\"Get the vessel's delta-v budget per stage: delta-v (vacuum/ASL/actual), TWR, ISP, thrust, burn time, and mass. Works in both flight and VAB/SPH editor. Essential for determining if the vessel can reach orbit, escape atmosphere, or reach another body.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_vessel_orbit\"," +
-                "\"description\":\"Get the vessel's current orbital parameters: apoapsis, periapsis, inclination, eccentricity, orbital period, true anomaly, time to Ap/Pe, and orbital velocity. Use to assess current trajectory and plan maneuvers.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_vessel_status\"," +
-                "\"description\":\"Get the vessel's real-time flight status: altitude, vertical/horizontal speed, G-force, electric charge, CommNet signal, atmosphere pressure/density at current position. Use for situational awareness.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"get_atmosphere_data\"," +
-                "\"description\":\"Get detailed atmosphere data for a celestial body: pressure, temperature, and density at multiple altitudes. Useful for planning ascent profiles, aerobraking, and estimating drag losses. Defaults to current body if in flight.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Eve, Duna, Laythe). Optional — defaults to current body if in flight.\"}},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"list_vessels\"," +
-                "\"description\":\"List all vessels in the current game: name, type (Ship, Probe, Debris, etc.), orbital situation, parent body, apoapsis/periapsis, and mass. Use when the player asks about other rockets, ships, debris, or any non-active vessels.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"analyze_vessel\"," +
-                "\"description\":\"Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Works in both flight and VAB/SPH editor (assumes Kerbin launch in editor). Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR. Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}" +
-            "}}," +
-            "{\"type\":\"function\",\"function\":{" +
-                "\"name\":\"search_available_parts\"," +
-                "\"description\":\"Search for parts available to the player, filtered by tech tree progress in Career/Science mode. Returns part name, category, cost, mass, tech node, and engine stats if applicable. Use when the player asks what parts they can use, wants to find an engine or fuel tank, or is building a rocket and needs part recommendations.\"," +
-                "\"parameters\":{\"type\":\"object\",\"properties\":{" +
-                    "\"category\":{\"type\":\"string\",\"description\":\"Filter by category: Pods, FuelTank, Engine, Command, Structural, Aero, Utility, Science, Coupling, Electrical, Ground, Thermal, Cargo, Robotics, Communication, none. Optional.\"}," +
-                    "\"search\":{\"type\":\"string\",\"description\":\"Text search in part name, description, and manufacturer. Optional.\"}" +
-                "},\"required\":[]}" +
-            "}}";
+        private static readonly ToolSpec[] Specs = new[]
+        {
+            new ToolSpec(
+                "get_vessel_parts",
+                "Get the vessel's part list with counts, masses, costs, and onboard resources. Works in both flight and VAB/SPH editor. Use when the player asks about their rocket, ship, or vessel composition.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "get_part_info",
+                "Get detailed info for a specific part type: description, mass, cost, category, manufacturer, resource capacities, and engine performance (thrust, Isp vacuum/sea-level, propellants) if the part is an engine. Use when the player asks about a particular part or engine stats.",
+                "{\"type\":\"object\",\"properties\":{\"part_name\":{\"type\":\"string\",\"description\":\"Name of the part (e.g. FL-T400 Fuel Tank, LV-T30 Reliant Engine)\"}},\"required\":[\"part_name\"]}"),
+            new ToolSpec(
+                "get_celestial_body",
+                "Get parameters of a celestial body: mass, radius, gravity, atmosphere, sphere of influence, and orbital parameters. Use when the player asks about a planet or moon.",
+                "{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Mun, Duna, Eve, Jool)\"}},\"required\":[\"body_name\"]}"),
+            new ToolSpec(
+                "get_contracts",
+                "Get all contracts: both active (accepted) contracts with objectives and completion state, and offered (available) contracts with deadlines and prestige. Use when the player asks about contracts, missions, or what they can accept.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "get_vessel_delta_v",
+                "Get the vessel's delta-v budget per stage: delta-v (vacuum/ASL/actual), TWR, ISP, thrust, burn time, and mass. Works in both flight and VAB/SPH editor. Essential for determining if the vessel can reach orbit, escape atmosphere, or reach another body.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "get_vessel_orbit",
+                "Get the vessel's current orbital parameters: apoapsis, periapsis, inclination, eccentricity, orbital period, true anomaly, time to Ap/Pe, and orbital velocity. Use to assess current trajectory and plan maneuvers.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "get_vessel_status",
+                "Get the vessel's real-time flight status: altitude, vertical/horizontal speed, G-force, electric charge, CommNet signal, atmosphere pressure/density at current position. Use for situational awareness.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "get_atmosphere_data",
+                "Get detailed atmosphere data for a celestial body: pressure, temperature, and density at multiple altitudes. Useful for planning ascent profiles, aerobraking, and estimating drag losses. Defaults to current body if in flight.",
+                "{\"type\":\"object\",\"properties\":{\"body_name\":{\"type\":\"string\",\"description\":\"Name of the celestial body (e.g. Kerbin, Eve, Duna, Laythe). Optional — defaults to current body if in flight.\"}},\"required\":[]}"),
+            new ToolSpec(
+                "list_vessels",
+                "List all vessels in the current game: name, type (Ship, Probe, Debris, etc.), orbital situation, parent body, apoapsis/periapsis, and mass. Use when the player asks about other rockets, ships, debris, or any non-active vessels.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "analyze_vessel",
+                "Analyze the vessel's capabilities using actual game physics: can it lift off, reach orbit, escape SOI? Works in both flight and VAB/SPH editor (assumes Kerbin launch in editor). Computes Δv requirements from real body parameters. Provides per-stage flight profile with estimated ignition altitude and environment-appropriate TWR. Lists reachable destinations with transfer Δv. Use this FIRST when the player asks if their rocket is good enough, can reach somewhere, or has enough fuel.",
+                "{\"type\":\"object\",\"properties\":{},\"required\":[]}"),
+            new ToolSpec(
+                "search_available_parts",
+                "Search for parts available to the player, filtered by tech tree progress in Career/Science mode. Returns part name, category, cost, mass, tech node, and engine stats if applicable. Use when the player asks what parts they can use, wants to find an engine or fuel tank, or is building a rocket and needs part recommendations.",
+                "{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"description\":\"Filter by category: Pods, FuelTank, Engine, Command, Structural, Aero, Utility, Science, Coupling, Electrical, Ground, Thermal, Cargo, Robotics, Communication, none. Optional.\"},\"search\":{\"type\":\"string\",\"description\":\"Text search in part name, description, and manufacturer. Optional.\"}},\"required\":[]}"),
+        };
 
+        public static IReadOnlyList<ToolSpec> AllSpecs => Specs;
+
+        /// <summary>OpenAI Chat Completions tools array.</summary>
         public static string GetToolsJsonArray()
         {
-            return "[" + ToolsJson + "]";
+            var sb = new StringBuilder();
+            sb.Append('[');
+            for (int i = 0; i < Specs.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                var spec = Specs[i];
+                sb.Append("{\"type\":\"function\",\"function\":{\"name\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Name));
+                sb.Append("\",\"description\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Description));
+                sb.Append("\",\"parameters\":");
+                sb.Append(spec.ParametersJson);
+                sb.Append("}}");
+            }
+            sb.Append(']');
+            return sb.ToString();
+        }
+
+        /// <summary>Anthropic Messages API tools array.</summary>
+        public static string GetToolsJsonArrayAnthropic()
+        {
+            var sb = new StringBuilder();
+            sb.Append('[');
+            for (int i = 0; i < Specs.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                var spec = Specs[i];
+                sb.Append("{\"name\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Name));
+                sb.Append("\",\"description\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Description));
+                sb.Append("\",\"input_schema\":");
+                sb.Append(spec.ParametersJson);
+                sb.Append('}');
+            }
+            sb.Append(']');
+            return sb.ToString();
         }
 
         public static string GetToolStatusLabel(string name)

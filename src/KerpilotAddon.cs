@@ -1,3 +1,4 @@
+using System.Net;
 using KSP.UI.Screens;
 using UnityEngine;
 
@@ -9,12 +10,37 @@ namespace Kerpilot
         private ChatWindow _chatWindow;
         private static ApplicationLauncherButton _toolbarButton;
         private Texture2D _toolbarIcon;
+        private static bool _tlsInitialized;
 
         private void Awake()
         {
+            EnsureTlsConfigured();
             _toolbarIcon = CreateToolbarIcon();
             GameEvents.onGUIApplicationLauncherReady.Add(OnLauncherReady);
             GameEvents.onGUIApplicationLauncherUnreadifying.Add(OnLauncherUnready);
+        }
+
+        // KSP 1.12.5 ships Unity 2019 / Mono with a default ServicePointManager
+        // protocol that excludes TLS 1.2/1.3 — every modern HTTPS endpoint
+        // (api.openai.com, api.anthropic.com, openrouter.ai, ...) then fails
+        // the handshake with "Unable to complete SSL connection". We force the
+        // newer protocols on first scene load.
+        private static void EnsureTlsConfigured()
+        {
+            if (_tlsInitialized) return;
+            _tlsInitialized = true;
+            try
+            {
+                // SecurityProtocolType values for Tls11/Tls12/Tls13 are not present
+                // in the .NET 4.7.2 reference assemblies KSP targets — use the
+                // numeric flags directly. Tls=192, Tls11=768, Tls12=3072, Tls13=12288.
+                ServicePointManager.SecurityProtocol = (SecurityProtocolType)(192 | 768 | 3072 | 12288);
+            }
+            catch
+            {
+                try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)(192 | 768 | 3072); }
+                catch { /* best-effort; UnityWebRequest cert handler is the fallback */ }
+            }
         }
 
         private void Start()
