@@ -96,6 +96,39 @@ namespace Kerpilot.Tests
             Assert.IsTrue(result.Contains("KSP keyboard controls and game mechanics."));
         }
 
+        [Test]
+        public void ComposeSystemPrompt_WithSnapshot_EmitsGameStateSection()
+        {
+            string snapshot = "{\"scene\":\"Flight\",\"vessel\":\"Kerbal 1\"}";
+            var result = SkillSelector.ComposeSystemPrompt("Base.", snapshot);
+            Assert.IsTrue(result.Contains("## Current Game State"));
+            Assert.IsTrue(result.Contains("<game_state>"));
+            Assert.IsTrue(result.Contains(snapshot));
+            Assert.IsTrue(result.Contains("</game_state>"));
+            // Snapshot section appears before skills section
+            Assert.Less(result.IndexOf("## Current Game State"),
+                        result.IndexOf("## Reference Knowledge"));
+        }
+
+        [Test]
+        public void ComposeSystemPrompt_NullOrEmptySnapshot_NoSection()
+        {
+            var resultNull = SkillSelector.ComposeSystemPrompt("Base.", null);
+            var resultEmpty = SkillSelector.ComposeSystemPrompt("Base.", "");
+            Assert.IsFalse(resultNull.Contains("## Current Game State"));
+            Assert.IsFalse(resultEmpty.Contains("## Current Game State"));
+        }
+
+        [Test]
+        public void ComposeSystemPrompt_NoSkillsButSnapshot_StillEmitsSnapshot()
+        {
+            SkillDefinitions.SetSkillsForTesting(new SkillDefinitions.Skill[0]);
+            var result = SkillSelector.ComposeSystemPrompt("Base.", "{\"scene\":\"SpaceCenter\"}");
+            Assert.IsTrue(result.Contains("## Current Game State"));
+            Assert.IsTrue(result.Contains("SpaceCenter"));
+            Assert.IsFalse(result.Contains("## Reference Knowledge"));
+        }
+
         // ── ParseSkillFile ──
 
         [Test]

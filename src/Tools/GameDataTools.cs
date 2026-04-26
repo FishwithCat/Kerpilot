@@ -9,6 +9,162 @@ namespace Kerpilot
         private const double KerbinSecondsPerDay = 21600.0;
 
         /// <summary>
+        /// Compact snapshot of current scene + vessel/editor/career state, attached
+        /// to the system prompt each turn so the LLM has situational awareness
+        /// without round-tripping through tools for top-level facts. Returns a
+        /// JSON object string. Safe to call from any scene; missing pieces are
+        /// silently omitted.
+        /// </summary>
+        public static string GetGameStateSnapshot()
+        {
+            var sb = new StringBuilder();
+            sb.Append("{\"scene\":\"");
+
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                sb.Append("Flight\"");
+                AppendFlightState(sb);
+            }
+            else if (HighLogic.LoadedSceneIsEditor)
+            {
+                sb.Append("Editor\"");
+                AppendEditorState(sb);
+            }
+            else if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            {
+                sb.Append("SpaceCenter\"");
+            }
+            else if (HighLogic.LoadedScene == GameScenes.TRACKSTATION)
+            {
+                sb.Append("TrackingStation\"");
+            }
+            else
+            {
+                sb.Append(JsonHelper.EscapeJsonString(HighLogic.LoadedScene.ToString()));
+                sb.Append("\"");
+            }
+
+            AppendCareerState(sb);
+            AppendContractCounts(sb);
+
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        private static void AppendFlightState(StringBuilder sb)
+        {
+            var v = FlightGlobals.ActiveVessel;
+            if (v == null) return;
+
+            sb.Append(",\"vessel\":\"");
+            sb.Append(JsonHelper.EscapeJsonString(v.vesselName));
+            sb.Append("\",\"situation\":\"");
+            sb.Append(v.situation.ToString());
+            sb.Append("\",\"body\":\"");
+            sb.Append(JsonHelper.EscapeJsonString(v.mainBody.bodyName));
+            sb.Append("\",\"altitude_m\":");
+            sb.Append(v.altitude.ToString("F0"));
+            sb.Append(",\"surface_speed_m_s\":");
+            sb.Append(v.srfSpeed.ToString("F1"));
+            sb.Append(",\"orbital_speed_m_s\":");
+            sb.Append(v.obt_velocity.magnitude.ToString("F1"));
+            sb.Append(",\"mass_tons\":");
+            sb.Append(v.totalMass.ToString("F2"));
+
+            if (v.orbit != null)
+            {
+                sb.Append(",\"apoapsis_m\":");
+                sb.Append(v.orbit.ApA.ToString("F0"));
+                sb.Append(",\"periapsis_m\":");
+                sb.Append(v.orbit.PeA.ToString("F0"));
+                sb.Append(",\"eccentricity\":");
+                sb.Append(v.orbit.eccentricity.ToString("F4"));
+                sb.Append(",\"inclination_deg\":");
+                sb.Append(v.orbit.inclination.ToString("F2"));
+            }
+
+            if (v.VesselDeltaV != null)
+            {
+                sb.Append(",\"total_dv_vac_m_s\":");
+                sb.Append(v.VesselDeltaV.TotalDeltaVVac.ToString("F0"));
+                int stages = v.VesselDeltaV.OperatingStageInfo != null
+                    ? v.VesselDeltaV.OperatingStageInfo.Count : 0;
+                sb.Append(",\"powered_stage_count\":");
+                sb.Append(stages);
+            }
+        }
+
+        private static void AppendEditorState(StringBuilder sb)
+        {
+            var ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
+            if (ship == null) return;
+
+            sb.Append(",\"facility\":\"");
+            sb.Append(ship.shipFacility.ToString());
+            sb.Append("\",\"ship_name\":\"");
+            sb.Append(JsonHelper.EscapeJsonString(ship.shipName ?? ""));
+            sb.Append("\",\"part_count\":");
+            sb.Append(ship.parts != null ? ship.parts.Count : 0);
+
+            if (ship.parts != null && ship.parts.Count > 0)
+            {
+                double mass = 0;
+                foreach (var p in ship.parts)
+                    mass += p.mass + p.GetResourceMass();
+                sb.Append(",\"mass_tons\":");
+                sb.Append(mass.ToString("F2"));
+            }
+
+            if (ship.vesselDeltaV != null)
+            {
+                sb.Append(",\"total_dv_vac_m_s\":");
+                sb.Append(ship.vesselDeltaV.TotalDeltaVVac.ToString("F0"));
+            }
+        }
+
+        private static void AppendCareerState(StringBuilder sb)
+        {
+            if (HighLogic.CurrentGame == null) return;
+
+            sb.Append(",\"game_mode\":\"");
+            sb.Append(HighLogic.CurrentGame.Mode.ToString());
+            sb.Append("\"");
+
+            if (Funding.Instance != null)
+            {
+                sb.Append(",\"funds\":");
+                sb.Append(Funding.Instance.Funds.ToString("F0"));
+            }
+            if (ResearchAndDevelopment.Instance != null)
+            {
+                sb.Append(",\"science\":");
+                sb.Append(ResearchAndDevelopment.Instance.Science.ToString("F1"));
+            }
+            if (Reputation.Instance != null)
+            {
+                sb.Append(",\"reputation\":");
+                sb.Append(Reputation.Instance.reputation.ToString("F1"));
+            }
+        }
+
+        private static void AppendContractCounts(StringBuilder sb)
+        {
+            var cs = Contracts.ContractSystem.Instance;
+            if (cs == null || cs.Contracts == null) return;
+
+            int active = 0, offered = 0;
+            foreach (var c in cs.Contracts)
+            {
+                if (c.ContractState == Contracts.Contract.State.Active) active++;
+                else if (c.ContractState == Contracts.Contract.State.Offered) offered++;
+            }
+            sb.Append(",\"active_contracts\":");
+            sb.Append(active);
+            sb.Append(",\"offered_contracts\":");
+            sb.Append(offered);
+        }
+
+        /// <summary>
         /// Returns parts + metadata from the active vessel (flight) or the ship
         /// being built (VAB/SPH editor). Returns null with an error string if
         /// neither is available.

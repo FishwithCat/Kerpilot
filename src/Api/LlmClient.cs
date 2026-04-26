@@ -15,7 +15,9 @@ namespace Kerpilot
             "Keep responses concise and practical.\n\n" +
             "CRITICAL: Never guess, estimate, or recall from memory any in-game numerical values " +
             "(delta-v, mass, thrust, Isp, gravity, atmosphere pressure, orbital parameters, body radius, " +
-            "resource amounts, part stats, etc.). ALWAYS use the available tools to query actual game data first. " +
+            "resource amounts, part stats, etc.). A live game-state snapshot is attached each turn under " +
+            "'## Current Game State' — use those values directly without a tool call. For anything not in " +
+            "the snapshot, ALWAYS use the available tools to query actual game data first. " +
             "This applies even when you think you know the value — the player's game state, mods, or configs " +
             "may differ from defaults. If a tool is available to retrieve the data, you must call it before " +
             "referencing any numbers in your response.\n\n" +
@@ -44,7 +46,8 @@ namespace Kerpilot
             }
 
             ChatProvider provider = ChatProviderDetector.Detect(settings.BaseUrl);
-            string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt);
+            string gameState = GameDataTools.GetGameStateSnapshot();
+            string systemPrompt = SkillSelector.ComposeSystemPrompt(BaseSystemPrompt, gameState);
 
             string url;
             string body;
