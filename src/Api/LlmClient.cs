@@ -282,6 +282,7 @@ namespace Kerpilot
         private readonly StringBuilder _rawResponse = new StringBuilder();
         private readonly SortedDictionary<int, ToolCallAccumulator> _toolCalls = new SortedDictionary<int, ToolCallAccumulator>();
         private readonly SortedDictionary<int, PreservedBlockAccumulator> _preservedBlocks = new SortedDictionary<int, PreservedBlockAccumulator>();
+        private readonly List<string> _preservedRawParts = new List<string>();
         private readonly Func<string, IEnumerable<StreamDelta>> _parser;
         private bool _hasNewData;
 
@@ -289,6 +290,7 @@ namespace Kerpilot
         {
             public string Id;
             public string Name;
+            public string ThoughtSignature;
             public readonly StringBuilder Arguments = new StringBuilder();
         }
 
@@ -320,7 +322,11 @@ namespace Kerpilot
         {
             var result = new List<ToolCall>();
             foreach (var kv in _toolCalls)
-                result.Add(new ToolCall(kv.Value.Id, kv.Value.Name, kv.Value.Arguments.ToString()));
+                result.Add(new ToolCall(
+                    kv.Value.Id,
+                    kv.Value.Name,
+                    kv.Value.Arguments.ToString(),
+                    kv.Value.ThoughtSignature));
             return result;
         }
 
@@ -331,8 +337,8 @@ namespace Kerpilot
         /// </summary>
         public List<string> GetPreservedContentBlocks()
         {
-            if (_preservedBlocks.Count == 0) return null;
-            var result = new List<string>(_preservedBlocks.Count);
+            if (_preservedBlocks.Count == 0 && _preservedRawParts.Count == 0) return null;
+            var result = new List<string>(_preservedBlocks.Count + _preservedRawParts.Count);
             foreach (var kv in _preservedBlocks)
             {
                 var b = kv.Value;
@@ -352,6 +358,10 @@ namespace Kerpilot
                     result.Add(sb.ToString());
                 }
             }
+            // Gemini-only: raw parts captured verbatim from the stream, in
+            // arrival order. The Gemini request builder emits these directly
+            // as the assistant turn's parts array.
+            result.AddRange(_preservedRawParts);
             return result;
         }
 
@@ -402,6 +412,9 @@ namespace Kerpilot
                 {
                     if (delta == null) continue;
 
+                    if (delta.PreservedRawJson != null)
+                        _preservedRawParts.Add(delta.PreservedRawJson);
+
                     if (delta.HasPreservedBlock)
                         ProcessPreservedBlockDelta(delta);
 
@@ -433,6 +446,8 @@ namespace Kerpilot
                 tc.Name = delta.ToolCallFunctionName;
             if (delta.ToolCallArguments != null)
                 tc.Arguments.Append(delta.ToolCallArguments);
+            if (delta.ToolCallThoughtSignature != null)
+                tc.ThoughtSignature = delta.ToolCallThoughtSignature;
         }
 
         private void ProcessPreservedBlockDelta(StreamDelta delta)

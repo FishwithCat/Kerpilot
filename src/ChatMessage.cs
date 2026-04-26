@@ -23,11 +23,20 @@ namespace Kerpilot
         public string FunctionName { get; }
         public string Arguments { get; }
 
-        public ToolCall(string id, string functionName, string arguments)
+        /// <summary>
+        /// Gemini-only. Opaque signature attached to a functionCall part by
+        /// thinking-enabled models. Must be re-emitted verbatim on the same
+        /// part in the next request, or the API 400s subsequent tool rounds
+        /// with "Function call is missing a thought_signature".
+        /// </summary>
+        public string ThoughtSignature { get; }
+
+        public ToolCall(string id, string functionName, string arguments, string thoughtSignature = null)
         {
             Id = id;
             FunctionName = functionName;
             Arguments = arguments;
+            ThoughtSignature = thoughtSignature;
         }
     }
 

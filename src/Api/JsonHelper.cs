@@ -12,6 +12,17 @@ namespace Kerpilot
         public string ToolCallFunctionName;
         public string ToolCallArguments;
 
+        // Gemini-only: opaque per-part signature on functionCall parts when
+        // thinking is enabled. Must round-trip verbatim on the same part.
+        public string ToolCallThoughtSignature;
+
+        // Gemini-only: full raw JSON of a Part object captured verbatim from
+        // the stream, so the assistant turn can be echoed back unchanged with
+        // thoughtSignature/thought:true intact. Gemini's API rejects the next
+        // request if signatures are stripped from any part — including thought
+        // summary parts that precede a functionCall part.
+        public string PreservedRawJson;
+
         // Anthropic extended-thinking content blocks. The block index is shared
         // with HasToolCalls/Content (Anthropic uses one content_block index space).
         public bool HasPreservedBlock;
@@ -258,28 +269,60 @@ namespace Kerpilot
                 if (msg.Role == MessageRole.Assistant && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
                 {
                     sb.Append("{\"role\":\"model\",\"parts\":[");
-                    bool firstPart = true;
-                    if (!string.IsNullOrEmpty(msg.Text))
+
+                    // When PreservedContentBlocks holds verbatim parts captured
+                    // from the stream, echo them back unchanged — that is the
+                    // ONLY way to satisfy Gemini's thought-signature roundtrip
+                    // (signatures appear on thought-text parts that precede the
+                    // functionCall, and Gemini 400s the next request if any are
+                    // stripped). Skip the reconstructed text/functionCall path.
+                    bool emittedPreserved = false;
+                    if (msg.PreservedContentBlocks != null)
                     {
-                        firstPart = false;
-                        sb.Append("{\"text\":\"");
-                        sb.Append(EscapeJsonString(msg.Text));
-                        sb.Append("\"}");
+                        bool firstPreserved = true;
+                        for (int p = 0; p < msg.PreservedContentBlocks.Count; p++)
+                        {
+                            string raw = msg.PreservedContentBlocks[p];
+                            if (string.IsNullOrEmpty(raw)) continue;
+                            if (!firstPreserved) sb.Append(',');
+                            firstPreserved = false;
+                            sb.Append(raw);
+                            emittedPreserved = true;
+                        }
                     }
-                    for (int t = 0; t < msg.ToolCalls.Count; t++)
+
+                    if (!emittedPreserved)
                     {
-                        if (!firstPart) sb.Append(',');
-                        firstPart = false;
-                        var tc = msg.ToolCalls[t];
-                        sb.Append("{\"functionCall\":{\"name\":\"");
-                        sb.Append(EscapeJsonString(tc.FunctionName));
-                        sb.Append("\",\"args\":");
-                        string args = tc.Arguments;
-                        if (string.IsNullOrEmpty(args) || string.IsNullOrEmpty(args.Trim()))
-                            sb.Append("{}");
-                        else
-                            sb.Append(args);
-                        sb.Append("}}");
+                        bool firstPart = true;
+                        if (!string.IsNullOrEmpty(msg.Text))
+                        {
+                            firstPart = false;
+                            sb.Append("{\"text\":\"");
+                            sb.Append(EscapeJsonString(msg.Text));
+                            sb.Append("\"}");
+                        }
+                        for (int t = 0; t < msg.ToolCalls.Count; t++)
+                        {
+                            if (!firstPart) sb.Append(',');
+                            firstPart = false;
+                            var tc = msg.ToolCalls[t];
+                            sb.Append('{');
+                            if (!string.IsNullOrEmpty(tc.ThoughtSignature))
+                            {
+                                sb.Append("\"thoughtSignature\":\"");
+                                sb.Append(EscapeJsonString(tc.ThoughtSignature));
+                                sb.Append("\",");
+                            }
+                            sb.Append("\"functionCall\":{\"name\":\"");
+                            sb.Append(EscapeJsonString(tc.FunctionName));
+                            sb.Append("\",\"args\":");
+                            string args = tc.Arguments;
+                            if (string.IsNullOrEmpty(args) || string.IsNullOrEmpty(args.Trim()))
+                                sb.Append("{}");
+                            else
+                                sb.Append(args);
+                            sb.Append("}}");
+                        }
                     }
                     sb.Append("]}");
                 }
@@ -639,8 +682,13 @@ namespace Kerpilot
                 int partEnd = FindMatchingClose(json, p);
                 if (partEnd < 0) break;
 
+                int thoughtColon = FindKeyAtTopLevel(json, p + 1, partEnd, "thought");
+                bool isThought = thoughtColon >= 0 && ExtractBoolValueAt(json, thoughtColon, partEnd);
+
                 int textColon = FindKeyAtTopLevel(json, p + 1, partEnd, "text");
-                if (textColon >= 0)
+                // Don't surface thought-summary text in the visible stream;
+                // we still preserve the raw part below for round-trip.
+                if (textColon >= 0 && !isThought)
                 {
                     string text = ExtractStringValueAt(json, textColon, partEnd);
                     if (text != null)
@@ -662,11 +710,24 @@ namespace Kerpilot
                     else
                         d.ToolCallArguments = "{}";
 
+                    int sigColon = FindKeyAtTopLevel(json, p + 1, partEnd, "thoughtSignature");
+                    if (sigColon >= 0)
+                        d.ToolCallThoughtSignature = ExtractStringValueAt(json, sigColon, partEnd);
+
                     // Gemini doesn't return a call id; synthesize one so the
                     // existing accumulator/dispatch path stays unchanged.
                     d.ToolCallId = "gemini_call_" + partIndex + "_" + (d.ToolCallFunctionName ?? "fn");
                     results.Add(d);
                 }
+
+                // Preserve the full part verbatim so the assistant turn can be
+                // echoed back unchanged. Required for thinking-enabled models —
+                // Gemini 400s if any thought_signature (on thought-text or
+                // functionCall parts) is stripped from the next request.
+                results.Add(new StreamDelta
+                {
+                    PreservedRawJson = json.Substring(p, partEnd - p + 1)
+                });
 
                 p = SkipWhitespace(json, partEnd + 1);
                 if (p < partsEnd && json[p] == ',') p = SkipWhitespace(json, p + 1);
@@ -799,6 +860,12 @@ namespace Kerpilot
                 else { sb.Append(c); i++; }
             }
             return sb.ToString();
+        }
+
+        private static bool ExtractBoolValueAt(string s, int colonPos, int end)
+        {
+            int p = SkipWhitespace(s, colonPos + 1);
+            return p + 4 <= end && string.CompareOrdinal(s, p, "true", 0, 4) == 0;
         }
 
         private static int ExtractIntValueAt(string s, int colonPos, int end, int fallback)
