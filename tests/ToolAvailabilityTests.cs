@@ -169,11 +169,21 @@ namespace Kerpilot.Tests
         }
 
         [Test]
-        public void ParseStreamDelta_InvalidJson_ReturnsNull()
+        public void ParseStreamDelta_NullOrEmpty_ReturnsNull()
         {
-            Assert.That(JsonHelper.ParseStreamDelta("not json"), Is.Null);
             Assert.That(JsonHelper.ParseStreamDelta(null), Is.Null);
             Assert.That(JsonHelper.ParseStreamDelta(""), Is.Null);
+        }
+
+        [Test]
+        public void ParseStreamDelta_NonJsonInput_ReturnsEmptyDelta()
+        {
+            // Anything without a top-level object is treated as a non-delta chunk;
+            // the streaming handler skips empty deltas the same as null.
+            var delta = JsonHelper.ParseStreamDelta("not json");
+            Assert.That(delta, Is.Not.Null);
+            Assert.That(delta.Content, Is.Null);
+            Assert.That(delta.HasToolCalls, Is.False);
         }
 
         // ── ChatMessage tool call model ──

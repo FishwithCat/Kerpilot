@@ -23,10 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>$(ManagedDir)/Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
@@ -79,8 +75,6 @@
     </ItemGroup>
     <Copy SourceFiles="$(OutputPath)Kerpilot.dll"
           DestinationFolder="$(ModDir)/Plugins/" />
-    <Copy SourceFiles="$(OutputPath)Newtonsoft.Json.dll"
-          DestinationFolder="$(ModDir)/Plugins/" />
     <Copy SourceFiles="@(SkillSources)"
           DestinationFolder="$(ModDir)/Skills/" />
   </Target>
@@ -97,8 +91,6 @@
     <RemoveDir Directories="$(PackageDir)/staging" />
     <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Plugins" />
     <Copy SourceFiles="$(OutputPath)Kerpilot.dll"
-          DestinationFolder="$(PackageDir)/staging/Kerpilot/Plugins/" />
-    <Copy SourceFiles="$(OutputPath)Newtonsoft.Json.dll"
           DestinationFolder="$(PackageDir)/staging/Kerpilot/Plugins/" />
     <MakeDir Directories="$(PackageDir)/staging/Kerpilot/Skills" />
     <Copy SourceFiles="@(SkillFiles)"
