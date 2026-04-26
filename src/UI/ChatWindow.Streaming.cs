@@ -101,7 +101,7 @@ namespace Kerpilot
                         _coroutineHost.StartCoroutine(ScrollToBottom());
 
                         string result = ToolDefinitions.ExecuteTool(tc.FunctionName, tc.Arguments);
-                        _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result));
+                        _conversationHistory.Add(ChatMessage.CreateToolResult(tc.Id, result, tc.FunctionName));
 
                         RemoveLastLogLine();
                     }

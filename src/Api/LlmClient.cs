@@ -48,14 +48,22 @@ namespace Kerpilot
 
             string url;
             string body;
-            Func<string, StreamDelta> parser;
+            Func<string, IEnumerable<StreamDelta>> parser;
             if (provider == ChatProvider.Anthropic)
             {
                 url = BuildAnthropicUrl(settings.BaseUrl);
                 body = JsonHelper.BuildAnthropicRequestBody(
                     history, settings.ModelName, systemPrompt,
                     ToolDefinitions.GetToolsJsonArrayAnthropic(), AnthropicMaxTokens);
-                parser = JsonHelper.ParseAnthropicStreamEvent;
+                parser = WrapSingle(JsonHelper.ParseAnthropicStreamEvent);
+            }
+            else if (provider == ChatProvider.Gemini)
+            {
+                url = BuildGeminiUrl(settings.BaseUrl, settings.ModelName);
+                body = JsonHelper.BuildGeminiRequestBody(
+                    history, settings.ModelName, systemPrompt,
+                    ToolDefinitions.GetToolsJsonArrayGemini());
+                parser = JsonHelper.ParseGeminiStreamEvents;
             }
             else
             {
@@ -63,7 +71,7 @@ namespace Kerpilot
                 body = JsonHelper.BuildChatRequestBody(
                     history, settings.ModelName, systemPrompt,
                     ToolDefinitions.GetToolsJsonArray());
-                parser = JsonHelper.ParseStreamDelta;
+                parser = WrapSingle(JsonHelper.ParseStreamDelta);
             }
 
             var request = new UnityWebRequest(url, "POST");
@@ -80,6 +88,10 @@ namespace Kerpilot
             {
                 request.SetRequestHeader("x-api-key", settings.ApiKey);
                 request.SetRequestHeader("anthropic-version", AnthropicVersion);
+            }
+            else if (provider == ChatProvider.Gemini)
+            {
+                request.SetRequestHeader("x-goog-api-key", settings.ApiKey);
             }
             else
             {
@@ -215,6 +227,30 @@ namespace Kerpilot
                 return b + "/messages";
             return b + "/v1/messages";
         }
+
+        /// <summary>
+        /// Resolves the Gemini :streamGenerateContent endpoint for a given
+        /// model. Accepts base URLs like "https://generativelanguage.googleapis.com"
+        /// (auto-appends /v1beta) or one already ending in /v1 or /v1beta.
+        /// alt=sse forces server-sent event framing instead of one giant array.
+        /// </summary>
+        public static string BuildGeminiUrl(string baseUrl, string model)
+        {
+            string b = (baseUrl ?? "").TrimEnd('/');
+            string suffix = "/models/" + model + ":streamGenerateContent?alt=sse";
+            if (b.EndsWith("/v1") || b.EndsWith("/v1beta"))
+                return b + suffix;
+            return b + "/v1beta" + suffix;
+        }
+
+        private static Func<string, IEnumerable<StreamDelta>> WrapSingle(Func<string, StreamDelta> single)
+        {
+            return json =>
+            {
+                var d = single(json);
+                return d == null ? null : new[] { d };
+            };
+        }
     }
 
     /// <summary>
@@ -230,10 +266,11 @@ namespace Kerpilot
     }
 
     /// <summary>
-    /// SSE download handler shared by OpenAI and Anthropic providers. The parser
-    /// delegate decides how to extract content / tool-call fragments from each
-    /// "data: ..." payload. Tool call slots are keyed by parser-supplied index
-    /// (OpenAI: tool call index in the array; Anthropic: content block index).
+    /// SSE download handler shared by OpenAI, Anthropic and Gemini providers.
+    /// The parser delegate decodes each "data: ..." payload into zero or more
+    /// StreamDelta items. Tool call slots are keyed by parser-supplied index —
+    /// OpenAI uses the tool_calls array index, Anthropic the content_block
+    /// index, Gemini the position of the functionCall part within the chunk.
     /// </summary>
     public class SseDownloadHandler : DownloadHandlerScript
     {
@@ -242,7 +279,7 @@ namespace Kerpilot
         private readonly StringBuilder _rawResponse = new StringBuilder();
         private readonly SortedDictionary<int, ToolCallAccumulator> _toolCalls = new SortedDictionary<int, ToolCallAccumulator>();
         private readonly SortedDictionary<int, PreservedBlockAccumulator> _preservedBlocks = new SortedDictionary<int, PreservedBlockAccumulator>();
-        private readonly Func<string, StreamDelta> _parser;
+        private readonly Func<string, IEnumerable<StreamDelta>> _parser;
         private bool _hasNewData;
 
         private class ToolCallAccumulator
@@ -260,9 +297,9 @@ namespace Kerpilot
             public string Data;
         }
 
-        public SseDownloadHandler(Func<string, StreamDelta> parser)
+        public SseDownloadHandler(Func<string, IEnumerable<StreamDelta>> parser)
         {
-            _parser = parser ?? JsonHelper.ParseStreamDelta;
+            _parser = parser;
         }
 
         public bool HasToolCalls => _toolCalls.Count > 0;
@@ -355,22 +392,27 @@ namespace Kerpilot
                 string payload = trimmed.Substring(6);
                 if (payload == "[DONE]") continue;
 
-                var delta = _parser(payload);
-                if (delta == null) continue;
+                var deltas = _parser(payload);
+                if (deltas == null) continue;
 
-                if (delta.HasPreservedBlock)
-                    ProcessPreservedBlockDelta(delta);
-
-                if (delta.HasToolCalls)
+                foreach (var delta in deltas)
                 {
-                    ProcessToolCallDelta(delta);
+                    if (delta == null) continue;
+
+                    if (delta.HasPreservedBlock)
+                        ProcessPreservedBlockDelta(delta);
+
+                    if (delta.HasToolCalls)
+                    {
+                        ProcessToolCallDelta(delta);
+                        if (delta.Content != null)
+                            _pendingTokens.Append(delta.Content);
+                        continue;
+                    }
+
                     if (delta.Content != null)
                         _pendingTokens.Append(delta.Content);
-                    continue;
                 }
-
-                if (delta.Content != null)
-                    _pendingTokens.Append(delta.Content);
             }
         }
 

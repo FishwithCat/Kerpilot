@@ -91,6 +91,31 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Gemini generateContent tools array. Gemini wraps function specs in
+        /// a single object with a "functionDeclarations" array (parameters
+        /// field is named "parameters", not "input_schema").
+        /// </summary>
+        public static string GetToolsJsonArrayGemini()
+        {
+            var sb = new StringBuilder();
+            sb.Append("[{\"functionDeclarations\":[");
+            for (int i = 0; i < Specs.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                var spec = Specs[i];
+                sb.Append("{\"name\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Name));
+                sb.Append("\",\"description\":\"");
+                sb.Append(JsonHelper.EscapeJsonString(spec.Description));
+                sb.Append("\",\"parameters\":");
+                sb.Append(spec.ParametersJson);
+                sb.Append('}');
+            }
+            sb.Append("]}]");
+            return sb.ToString();
+        }
+
         /// <summary>Anthropic Messages API tools array.</summary>
         public static string GetToolsJsonArrayAnthropic()
         {

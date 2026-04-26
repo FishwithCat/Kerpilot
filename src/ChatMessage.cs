@@ -41,6 +41,14 @@ namespace Kerpilot
         public string ToolCallId { get; }
 
         /// <summary>
+        /// Function name a tool result corresponds to. OpenAI/Anthropic key
+        /// tool results by id; Gemini's functionResponse blocks key by name,
+        /// so we keep the original name on the result message and re-emit it
+        /// when serializing for Gemini.
+        /// </summary>
+        public string ToolName { get; }
+
+        /// <summary>
         /// Provider-opaque content-block JSON fragments that must be passed back
         /// unchanged in the next request. Used for Anthropic extended-thinking
         /// blocks (type "thinking" with signature, or "redacted_thinking") that
@@ -57,25 +65,26 @@ namespace Kerpilot
             Timestamp = DateTime.Now;
         }
 
-        private ChatMessage(MessageRole role, string text, List<ToolCall> toolCalls, string toolCallId, List<string> preservedBlocks)
+        private ChatMessage(MessageRole role, string text, List<ToolCall> toolCalls, string toolCallId, string toolName, List<string> preservedBlocks)
         {
             Sender = role == MessageRole.User ? MessageSender.User : MessageSender.AI;
             Role = role;
             Text = text;
             ToolCalls = toolCalls;
             ToolCallId = toolCallId;
+            ToolName = toolName;
             PreservedContentBlocks = preservedBlocks;
             Timestamp = DateTime.Now;
         }
 
         public static ChatMessage CreateAssistantToolCall(List<ToolCall> toolCalls, string content = null, List<string> preservedBlocks = null)
         {
-            return new ChatMessage(MessageRole.Assistant, content, toolCalls, null, preservedBlocks);
+            return new ChatMessage(MessageRole.Assistant, content, toolCalls, null, null, preservedBlocks);
         }
 
-        public static ChatMessage CreateToolResult(string toolCallId, string content)
+        public static ChatMessage CreateToolResult(string toolCallId, string content, string toolName = null)
         {
-            return new ChatMessage(MessageRole.Tool, content, null, toolCallId, null);
+            return new ChatMessage(MessageRole.Tool, content, null, toolCallId, toolName, null);
         }
     }
 }

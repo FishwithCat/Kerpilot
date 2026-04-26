@@ -190,6 +190,140 @@ namespace Kerpilot
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Builds a Gemini :streamGenerateContent request body.
+        /// Roles are remapped: User → "user", Assistant → "model"; the system
+        /// prompt is hoisted into a top-level "systemInstruction" field. Tool
+        /// calls are emitted as "model" parts containing functionCall blocks
+        /// (args object inlined raw from the stored Arguments JSON). Tool
+        /// results — keyed by function name in Gemini, not by id — are emitted
+        /// as "user" parts containing functionResponse blocks. Consecutive
+        /// tool messages are coalesced into a single user turn so multi-tool
+        /// rounds satisfy Gemini's strict user/model alternation.
+        /// </summary>
+        public static string BuildGeminiRequestBody(
+            List<ChatMessage> history, string model, string systemPrompt, string geminiToolsJson)
+        {
+            var sb = new StringBuilder();
+            sb.Append('{');
+
+            if (!string.IsNullOrEmpty(systemPrompt))
+            {
+                sb.Append("\"systemInstruction\":{\"parts\":[{\"text\":\"");
+                sb.Append(EscapeJsonString(systemPrompt));
+                sb.Append("\"}]},");
+            }
+
+            if (!string.IsNullOrEmpty(geminiToolsJson))
+            {
+                sb.Append("\"tools\":");
+                sb.Append(geminiToolsJson);
+                sb.Append(',');
+            }
+
+            sb.Append("\"contents\":[");
+
+            int start = history.Count > 20 ? history.Count - 20 : 0;
+            bool firstMsg = true;
+            int i = start;
+            while (i < history.Count)
+            {
+                var msg = history[i];
+
+                if (msg.Role == MessageRole.Tool)
+                {
+                    if (!firstMsg) sb.Append(',');
+                    firstMsg = false;
+                    sb.Append("{\"role\":\"user\",\"parts\":[");
+                    bool firstPart = true;
+                    while (i < history.Count && history[i].Role == MessageRole.Tool)
+                    {
+                        if (!firstPart) sb.Append(',');
+                        firstPart = false;
+                        var t = history[i];
+                        sb.Append("{\"functionResponse\":{\"name\":\"");
+                        sb.Append(EscapeJsonString(t.ToolName ?? ""));
+                        sb.Append("\",\"response\":");
+                        AppendGeminiResponseObject(sb, t.Text);
+                        sb.Append("}}");
+                        i++;
+                    }
+                    sb.Append("]}");
+                    continue;
+                }
+
+                if (!firstMsg) sb.Append(',');
+                firstMsg = false;
+
+                if (msg.Role == MessageRole.Assistant && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
+                {
+                    sb.Append("{\"role\":\"model\",\"parts\":[");
+                    bool firstPart = true;
+                    if (!string.IsNullOrEmpty(msg.Text))
+                    {
+                        firstPart = false;
+                        sb.Append("{\"text\":\"");
+                        sb.Append(EscapeJsonString(msg.Text));
+                        sb.Append("\"}");
+                    }
+                    for (int t = 0; t < msg.ToolCalls.Count; t++)
+                    {
+                        if (!firstPart) sb.Append(',');
+                        firstPart = false;
+                        var tc = msg.ToolCalls[t];
+                        sb.Append("{\"functionCall\":{\"name\":\"");
+                        sb.Append(EscapeJsonString(tc.FunctionName));
+                        sb.Append("\",\"args\":");
+                        string args = tc.Arguments;
+                        if (string.IsNullOrEmpty(args) || string.IsNullOrEmpty(args.Trim()))
+                            sb.Append("{}");
+                        else
+                            sb.Append(args);
+                        sb.Append("}}");
+                    }
+                    sb.Append("]}");
+                }
+                else
+                {
+                    sb.Append("{\"role\":\"");
+                    sb.Append(msg.Sender == MessageSender.User ? "user" : "model");
+                    sb.Append("\",\"parts\":[{\"text\":\"");
+                    sb.Append(EscapeJsonString(msg.Text));
+                    sb.Append("\"}]}");
+                }
+
+                i++;
+            }
+
+            sb.Append("]}");
+            return sb.ToString();
+        }
+
+        private static void AppendGeminiResponseObject(StringBuilder sb, string raw)
+        {
+            // Gemini requires functionResponse.response to be a JSON object.
+            // Tool results from GameDataTools are already JSON objects, so
+            // inline them raw; if a tool ever returns a non-object payload,
+            // wrap it under {"content": "..."} so the API still accepts it.
+            if (string.IsNullOrEmpty(raw))
+            {
+                sb.Append("{}");
+                return;
+            }
+            int p = 0;
+            while (p < raw.Length && (raw[p] == ' ' || raw[p] == '\t' || raw[p] == '\n' || raw[p] == '\r')) p++;
+            if (p < raw.Length && raw[p] == '{')
+            {
+                sb.Append(raw);
+            }
+            else
+            {
+                sb.Append("{\"content\":\"");
+                sb.Append(EscapeJsonString(raw));
+                sb.Append("\"}");
+            }
+        }
+
         public static string BuildChatRequestBody(List<ChatMessage> history, string model, string systemPrompt, string toolsJson)
         {
             var sb = new StringBuilder();
@@ -459,6 +593,87 @@ namespace Kerpilot
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Parses a Gemini :streamGenerateContent SSE event payload.
+        /// Iterates candidates[0].content.parts[] and emits one StreamDelta
+        /// per part — text parts populate Content; functionCall parts populate
+        /// the tool-call fields (Name, raw-JSON Arguments object, synthesized
+        /// id, ToolCallIndex = position in the parts array). Gemini emits each
+        /// functionCall as a complete block (not fragmented across chunks),
+        /// and parallel calls arrive as adjacent parts in one chunk, so per-
+        /// chunk part index is sufficient for slot keying.
+        /// </summary>
+        public static List<StreamDelta> ParseGeminiStreamEvents(string json)
+        {
+            var results = new List<StreamDelta>();
+            if (string.IsNullOrEmpty(json)) return results;
+
+            int rootStart = json.IndexOf('{');
+            if (rootStart < 0) return results;
+            int rootEnd = FindMatchingClose(json, rootStart);
+            if (rootEnd < 0) return results;
+
+            int candArrStart, candArrEnd;
+            if (!FindArrayValue(json, rootStart + 1, rootEnd, "candidates", out candArrStart, out candArrEnd))
+                return results;
+
+            int firstCand = SkipWhitespace(json, candArrStart + 1);
+            if (firstCand >= candArrEnd || json[firstCand] != '{') return results;
+            int firstCandEnd = FindMatchingClose(json, firstCand);
+            if (firstCandEnd < 0) return results;
+
+            int contentStart, contentEnd;
+            if (!FindObjectValue(json, firstCand + 1, firstCandEnd, "content", out contentStart, out contentEnd))
+                return results;
+
+            int partsStart, partsEnd;
+            if (!FindArrayValue(json, contentStart + 1, contentEnd, "parts", out partsStart, out partsEnd))
+                return results;
+
+            int p = SkipWhitespace(json, partsStart + 1);
+            int partIndex = 0;
+            while (p < partsEnd && json[p] == '{')
+            {
+                int partEnd = FindMatchingClose(json, p);
+                if (partEnd < 0) break;
+
+                int textColon = FindKeyAtTopLevel(json, p + 1, partEnd, "text");
+                if (textColon >= 0)
+                {
+                    string text = ExtractStringValueAt(json, textColon, partEnd);
+                    if (text != null)
+                        results.Add(new StreamDelta { Content = text });
+                }
+
+                int fcStart, fcEnd;
+                if (FindObjectValue(json, p + 1, partEnd, "functionCall", out fcStart, out fcEnd))
+                {
+                    var d = new StreamDelta { HasToolCalls = true, ToolCallIndex = partIndex };
+
+                    int nameColon = FindKeyAtTopLevel(json, fcStart + 1, fcEnd, "name");
+                    if (nameColon >= 0)
+                        d.ToolCallFunctionName = ExtractStringValueAt(json, nameColon, fcEnd);
+
+                    int argsObjStart, argsObjEnd;
+                    if (FindObjectValue(json, fcStart + 1, fcEnd, "args", out argsObjStart, out argsObjEnd))
+                        d.ToolCallArguments = json.Substring(argsObjStart, argsObjEnd - argsObjStart + 1);
+                    else
+                        d.ToolCallArguments = "{}";
+
+                    // Gemini doesn't return a call id; synthesize one so the
+                    // existing accumulator/dispatch path stays unchanged.
+                    d.ToolCallId = "gemini_call_" + partIndex + "_" + (d.ToolCallFunctionName ?? "fn");
+                    results.Add(d);
+                }
+
+                p = SkipWhitespace(json, partEnd + 1);
+                if (p < partsEnd && json[p] == ',') p = SkipWhitespace(json, p + 1);
+                partIndex++;
+            }
+
+            return results;
         }
 
         private static bool FindArrayValue(string s, int start, int end, string key, out int arrStart, out int arrEnd)
