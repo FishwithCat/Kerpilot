@@ -15,7 +15,7 @@
     <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(KSPRoot)/KSP.app')">$(KSPRoot)/KSP.app/Contents/Resources/Data/Managed</ManagedDir>
     <ManagedDir Condition="'$(ManagedDir)' == ''">$(KSPRoot)/managed</ManagedDir>
     <ModDir>$(ProjectDir)GameData/Kerpilot</ModDir>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
